@@ -2,7 +2,8 @@ const User = require("../models/user");
 const bcryptjs = require("bcryptjs");
 const { errorHandler } = require("../utils/errorHandler");
 const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer"); 
+const nodemailer = require("nodemailer");
+// const firebase = require("../firebase");
 
 const registerUser = async (req, res, next) => {
   const { username, phone, email, password } = req.body;
@@ -214,10 +215,91 @@ const verifyEmail = async (req, res, next) => {
   }
 };
 
+const getProfile = async (req, res, next) => {
+  try {
+    // Lấy thông tin người dùng từ database dựa trên user ID trong token
+    const user = await User.findById(req.user.id).select("-password"); // Loại bỏ mật khẩu khỏi thông tin trả về
+
+    if (!user) {
+      return next(errorHandler(404, "Người dùng không tồn tại"));
+    }
+
+    // Trả về thông tin người dùng
+    res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateUser = async (req, res, next) => {
+  const { phone, email, fullName, address, roleId } = req.body;
+
+  try {
+    // Tìm người dùng dựa trên ID từ token
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return next(errorHandler(404, "Người dùng không tồn tại"));
+    }
+
+    // Kiểm tra xem email hoặc số điện thoại mới có trùng với bất kỳ ai khác không
+    if (email && email !== user.email) {
+      const emailExists = await User.findOne({ email });
+      if (emailExists) {
+        return next(errorHandler(400, "Email đã tồn tại"));
+      }
+    }
+
+    if (phone && phone !== user.phoneNumber) {
+      const phoneExists = await User.findOne({ phoneNumber: phone });
+      if (phoneExists) {
+        return next(errorHandler(400, "Số điện thoại đã tồn tại"));
+      }
+    }
+
+    // Kiểm tra xem roleId có hợp lệ không
+    const validRoles = ["admin", "customer", "seller", "shipper"];
+    if (roleId && !validRoles.includes(roleId)) {
+      return next(errorHandler(400, "Vai trò không hợp lệ"));
+    }
+
+    // Cập nhật thông tin người dùng
+    user.phoneNumber = phone || user.phoneNumber;
+    user.email = email || user.email;
+    user.fullName = fullName || user.fullName;
+    user.address = address || user.address;
+    user.roleId = roleId || user.roleId;
+
+    // Lưu thay đổi vào cơ sở dữ liệu
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Cập nhật thông tin thành công!",
+      user: {
+        id: user._id,
+        userName: user.userName,
+        phoneNumber: user.phoneNumber,
+        email: user.email,
+        fullName: user.fullName,
+        address: user.address,
+        roleId: user.roleId,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   // googleCallback,
   // facebookCallback,
   verifyEmail,
+  getProfile,
+  updateUser,
 };

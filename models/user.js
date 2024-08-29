@@ -16,6 +16,7 @@ const UserSchema = new mongoose.Schema(
     fullName: {
       type: String,
       trim: true,
+      default: "",
     },
     phoneNumber: {
       type: String,
@@ -48,6 +49,7 @@ const UserSchema = new mongoose.Schema(
     address: {
       type: String,
       trim: true,
+      default: "",
     },
     createdAt: { type: Date, default: Date.now },
     facebookId: {

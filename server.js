@@ -9,6 +9,7 @@ const { globalErrorHandler } = require("./utils/errorHandler"); // Import global
 // require('./passport'); // Đảm bảo rằng file cấu hình passport đã được import
 
 const userRoute = require("./routes/userroutes");
+const userPersonalRoute = require("./routes/userPersonalroutes");
 
 const app = express();
 // app.use(passport.initialize());
@@ -24,6 +25,7 @@ dbConnect();
 
 // Đăng ký các route
 app.use("/v1/user", userRoute);
+app.use("/v1/userPersonal", userPersonalRoute);
 
 // Xử lý tất cả các request không khớp với các route khác và trả về file index.html cho client-side routing
 app.get("*", (req, res) => {
