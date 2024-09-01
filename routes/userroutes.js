@@ -4,7 +4,10 @@ const {
   getProfile,
   loginUser,
   registerUser,
-  updateUser
+  updateUser,
+  sendResetPasswordEmail,
+  resetPassword,
+  changePassword
 } = require("../controllers/usercontrollers");
 // const passport = require('passport');
 const authenticateToken = require("../middlewares/authMiddleware");
@@ -18,6 +21,9 @@ router.post("/verify-email", verifyEmail); // Route để xác thực email
 // Route để lấy thông tin profile (yêu cầu xác thực token)
 router.get("/profile", authenticateToken, getProfile);
 router.put("/update", authenticateToken, updateUser); // Route cho cập nhật thông tin người dùng (yêu cầu xác thực token)
+router.post("/send-reset-password", sendResetPasswordEmail);
+router.post("/reset-password", resetPassword);
+router.put("/changePassword/:userId", authenticateToken, changePassword);
 // router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 // router.get('/google/callback',
 //   passport.authenticate('google', { session: false, failureRedirect: '/login' }),

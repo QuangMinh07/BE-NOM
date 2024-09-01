@@ -10,6 +10,7 @@ const { globalErrorHandler } = require("./utils/errorHandler"); // Import global
 
 const userRoute = require("./routes/userroutes");
 const userPersonalRoute = require("./routes/userPersonalroutes");
+const adminRoute = require("./routes/adminroutes");
 
 const app = express();
 // app.use(passport.initialize());
@@ -24,8 +25,10 @@ app.use(cookieParser());
 dbConnect();
 
 // Đăng ký các route
+
 app.use("/v1/user", userRoute);
 app.use("/v1/userPersonal", userPersonalRoute);
+app.use("/v1/admin", adminRoute);
 
 // Xử lý tất cả các request không khớp với các route khác và trả về file index.html cho client-side routing
 app.get("*", (req, res) => {
