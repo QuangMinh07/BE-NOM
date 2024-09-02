@@ -10,6 +10,11 @@ const AdminSchema = new mongoose.Schema(
             required: true,
             unique: true,
         },
+        fullName: {
+            type: String,
+            trim: true,
+            required: true,
+        },
         password: {
             type: String,
             required: true,
@@ -31,7 +36,6 @@ const AdminSchema = new mongoose.Schema(
         timestamps: true,
     }
 );
-
 
 const Admin = mongoose.model("Admin", AdminSchema);
 

@@ -3,7 +3,7 @@ const cors = require("cors");
 const express = require("express");
 const dbConnect = require("./config/dbConnect");
 const cookieParser = require("cookie-parser");
-const path = require("path"); 
+const path = require("path");
 const { globalErrorHandler } = require("./utils/errorHandler"); // Import globalErrorHandler từ errorHandler.js
 // const passport = require('passport');
 // require('./passport'); // Đảm bảo rằng file cấu hình passport đã được import
@@ -17,7 +17,10 @@ const app = express();
 
 const port = process.env.PORT || 8888;
 
-app.use(cors());
+app.use(cors({
+  origin: true, 
+  credentials: true, 
+}));
 app.use(express.json());
 app.use(cookieParser());
 

@@ -7,10 +7,10 @@ const {
   updateUser,
   sendResetPasswordEmail,
   resetPassword,
-  changePassword
+  changePassword,
 } = require("../controllers/usercontrollers");
 // const passport = require('passport');
-const authenticateToken = require("../middlewares/authMiddleware");
+const { authenticateToken } = require("../middlewares/authMiddleware");
 
 const router = express.Router();
 
