@@ -117,16 +117,15 @@ const loginAdmin = async (req, res, next) => {
 const getAllUser = async (req, res) => {
   try {
     const { role } = req.query;
-    console.log(role);
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-
     const skip = (page - 1) * limit;
-    const users = await User.find({ roleId: role }).skip(skip).limit(limit);
 
-    console.log("Users found:", users);
+    // Lấy tất cả người dùng với vai trò là "customer" hoặc "seller"
+    const query = { roleId: { $in: ["customer", "seller"] } };
 
-    const totalUsers = await User.countDocuments({ roleId: role });
+    const users = await User.find(query).skip(skip).limit(limit);
+    const totalUsers = await User.countDocuments(query);
 
     if (users.length === 0) {
       return res
@@ -142,10 +141,11 @@ const getAllUser = async (req, res) => {
       totalPages: Math.ceil(totalUsers / limit),
     });
   } catch (error) {
-    console.error("Error:", error); // In ra lỗi nếu có
+    console.error("Error:", error);
     return res.status(500).json({ success: false, msg: "Lỗi server" });
   }
 };
+
 module.exports = {
   registerAdmin,
   loginAdmin,
