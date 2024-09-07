@@ -12,23 +12,33 @@ const changePassword = async (req, res) => {
     const userId = req.params.userId;
     const { currentPassword, newPassword, confirmNewPassword } = req.body;
 
-    console.log('Received change password request:', { userId, currentPassword, newPassword, confirmNewPassword });
+    console.log("Received change password request:", {
+      userId,
+      currentPassword,
+      newPassword,
+      confirmNewPassword,
+    });
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ msg: 'Không tìm thấy người dùng' });
+      return res.status(404).json({ msg: "Không tìm thấy người dùng" });
     }
 
-    console.log('User found:', user);
+    console.log("User found:", user);
 
     // Use bcryptjs to verify the current password
-    const isPasswordValid = await bcryptjs.compare(currentPassword, user.password);
+    const isPasswordValid = await bcryptjs.compare(
+      currentPassword,
+      user.password
+    );
     if (!isPasswordValid) {
-      return res.status(401).json({ msg: 'Mật khẩu hiện tại không đúng' });
+      return res.status(401).json({ msg: "Mật khẩu hiện tại không đúng" });
     }
 
     if (newPassword !== confirmNewPassword) {
-      return res.status(400).json({ msg: 'Mật khẩu mới và xác nhận mật khẩu không khớp' });
+      return res
+        .status(400)
+        .json({ msg: "Mật khẩu mới và xác nhận mật khẩu không khớp" });
     }
 
     // Use bcryptjs to hash the new password
@@ -36,13 +46,12 @@ const changePassword = async (req, res) => {
 
     await User.findByIdAndUpdate(userId, { password: hashPass }, { new: true });
 
-    return res.status(200).json({ msg: 'Cập nhật mật khẩu thành công' });
+    return res.status(200).json({ msg: "Cập nhật mật khẩu thành công" });
   } catch (error) {
-    console.error('Error in changePassword:', error);
-    return res.status(500).json({ error: 'Lỗi server' });
+    console.error("Error in changePassword:", error);
+    return res.status(500).json({ error: "Lỗi server" });
   }
 };
-
 
 const resetPassword = async (req, res) => {
   try {
@@ -51,11 +60,14 @@ const resetPassword = async (req, res) => {
     // Find the user by the verification code and check if it hasn't expired
     const user = await User.findOne({
       verificationCode: verificationCode,
-      verificationCodeExpiry: { $gt: Date.now() }
+      verificationCodeExpiry: { $gt: Date.now() },
     });
 
     if (!user) {
-      return res.status(400).json({ success: false, msg: 'Mã xác nhận không hợp lệ hoặc đã hết hạn' });
+      return res.status(400).json({
+        success: false,
+        msg: "Mã xác nhận không hợp lệ hoặc đã hết hạn",
+      });
     }
 
     // Hash the new password and update the user's record
@@ -79,17 +91,20 @@ const resetPassword = async (req, res) => {
       from: process.env.EMAIL_USER,
       to: user.email,
       subject: "Mật khẩu đã được cập nhật",
-      text: `Mật khẩu của bạn đã được thay đổi thành công. Nếu bạn không yêu cầu điều này, vui lòng liên hệ với chúng tôi ngay lập tức.`
+      text: `Mật khẩu của bạn đã được thay đổi thành công. Nếu bạn không yêu cầu điều này, vui lòng liên hệ với chúng tôi ngay lập tức.`,
     };
 
     await transporter.sendMail(mailOptions);
 
-    res.status(200).json({ success: true, msg: 'Mật khẩu đã được cập nhật' });
+    res.status(200).json({ success: true, msg: "Mật khẩu đã được cập nhật" });
   } catch (error) {
-    res.status(500).json({ success: false, msg: 'Cập nhật mật khẩu thất bại', error: error.message });
+    res.status(500).json({
+      success: false,
+      msg: "Cập nhật mật khẩu thất bại",
+      error: error.message,
+    });
   }
 };
-
 
 const sendResetPasswordEmail = async (req, res) => {
   try {
@@ -97,10 +112,14 @@ const sendResetPasswordEmail = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(404).json({ success: false, msg: 'Email không tồn tại' });
+      return res
+        .status(404)
+        .json({ success: false, msg: "Email không tồn tại" });
     }
 
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString(); // Generate a 6-digit code
+    const verificationCode = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString(); // Generate a 6-digit code
     const verificationCodeExpiry = Date.now() + 1 * 60 * 1000; // Expiry time of 1 minute
 
     user.verificationCode = verificationCode;
@@ -119,17 +138,22 @@ const sendResetPasswordEmail = async (req, res) => {
       from: process.env.EMAIL_USER,
       to: user.email,
       subject: "Đặt lại mật khẩu của bạn",
-      text: `Mã xác thực của bạn để đặt lại mật khẩu là: ${verificationCode}. Mã xác thực này sẽ hết hạn sau 1 phút.`
+      text: `Mã xác thực của bạn để đặt lại mật khẩu là: ${verificationCode}. Mã xác thực này sẽ hết hạn sau 1 phút.`,
     };
 
     await transporter.sendMail(mailOptions);
 
-    res.status(200).json({ success: true, msg: 'Email reset mật khẩu đã được gửi' });
+    res
+      .status(200)
+      .json({ success: true, msg: "Email reset mật khẩu đã được gửi" });
   } catch (error) {
-    res.status(500).json({ success: false, msg: 'Gửi email thất bại', error: error.message });
+    res.status(500).json({
+      success: false,
+      msg: "Gửi email thất bại",
+      error: error.message,
+    });
   }
 };
-
 
 const registerUser = async (req, res, next) => {
   const { username, phone, email, password } = req.body;
@@ -262,10 +286,19 @@ const loginUser = async (req, res, next) => {
     const token = jwt.sign(
       { id: user._id, role: user.roleId },
       process.env.JWT_SECRET,
-      {
-        expiresIn: "1h",
-      }
+      { expiresIn: "7d" } // Token expires in 7 days
     );
+
+    // Set cookie with token
+    res.cookie("auth_token", token, {
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      // Remove sameSite and secure for testing purposes
+      // sameSite: 'Strict',
+      // secure: true,
+    });
+
+    console.log("Token đã được lưu trong cookie: ", token);
 
     // Trả về phản hồi đăng nhập thành công
     res.status(200).json({
@@ -334,7 +367,7 @@ const verifyEmail = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: "Xác thực email thành công!",
+      message: "Xác thực email thành công!Giờ bạn hãy đăng nhập",
     });
   } catch (error) {
     next(error);
@@ -420,6 +453,72 @@ const updateUser = async (req, res, next) => {
   }
 };
 
+const resendVerificationCode = async (req, res, next) => {
+  const { email } = req.body;
+
+  // Check if email is provided
+  if (!email) {
+    return next(errorHandler(400, "Email là bắt buộc"));
+  }
+
+  try {
+    // Find the user by email
+    const user = await User.findOne({ email });
+
+    // If user does not exist
+    if (!user) {
+      return next(errorHandler(404, "Người dùng không tồn tại"));
+    }
+
+    // If the user is already verified, no need to resend
+    if (user.isVerified) {
+      return next(errorHandler(400, "Tài khoản đã được xác thực"));
+    }
+
+    // Generate a new verification code and expiry time
+    const newVerificationCode = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
+    const newVerificationCodeExpiry = Date.now() + 1 * 60 * 1000; // 1 minute expiry
+
+    // Update user's verification code and expiry in the database
+    user.verificationCode = newVerificationCode;
+    user.verificationCodeExpiry = newVerificationCodeExpiry;
+    await user.save();
+
+    // Send the new verification code via email
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: "Mã Xác Thực Mới",
+      text: `Mã xác thực mới của bạn là: ${newVerificationCode}. Mã xác thực sẽ hết hạn sau 1 phút.`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    // Respond with success message
+    res.status(200).json({
+      success: true,
+      message: "Mã xác thực đã được gửi lại. Vui lòng kiểm tra email của bạn.",
+    });
+  } catch (error) {
+    console.error("Error in resendVerificationCode:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Gửi lại mã xác thực thất bại",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -430,5 +529,6 @@ module.exports = {
   updateUser,
   sendResetPasswordEmail,
   resetPassword,
-  changePassword
+  changePassword,
+  resendVerificationCode,
 };
