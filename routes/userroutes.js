@@ -10,6 +10,7 @@ const {
   changePassword,
   resendVerificationCode,
   logoutUser,
+  setOnlineStatus
 } = require("../controllers/usercontrollers");
 // const passport = require('passport');
 const { authenticateToken } = require("../middlewares/authMiddleware");
@@ -22,6 +23,7 @@ router.post("/login", loginUser);
 router.post("/logout", authenticateToken, logoutUser);
 router.post("/verify-email", verifyEmail); // Route để xác thực email
 router.post("/resend-verification-code", resendVerificationCode);
+router.put("/setOnlineStatus", authenticateToken, setOnlineStatus);
 
 // Route để lấy thông tin profile (yêu cầu xác thực token)
 router.get("/profile", authenticateToken, getProfile);

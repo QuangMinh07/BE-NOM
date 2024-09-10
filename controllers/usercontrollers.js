@@ -533,6 +533,25 @@ const resendVerificationCode = async (req, res, next) => {
   }
 };
 
+const setOnlineStatus = async (req, res) => {
+  try {
+    const userId = req.user.id; // Lấy ID người dùng từ token
+    const { isOnline } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, msg: "Người dùng không tồn tại" });
+    }
+
+    user.isOnline = isOnline;
+    await user.save();
+
+    res.status(200).json({ success: true, msg: `Trạng thái đã được cập nhật thành ${isOnline ? "on" : "off"}` });
+  } catch (error) {
+    res.status(500).json({ success: false, msg: "Cập nhật trạng thái thất bại", error: error.message });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -546,4 +565,5 @@ module.exports = {
   changePassword,
   resendVerificationCode,
   logoutUser, // Add this
+  setOnlineStatus
 };
