@@ -69,9 +69,9 @@ const UserSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
-    isActive: {
-      type: Boolean,
-      default: true,
+    lastActive: {
+      type: Date,
+      default: Date.now, // Thiết lập thời gian hoạt động mặc định là thời gian hiện tại khi tạo user
     },
     isVerified: { type: Boolean, default: false },
     verificationCode: {
@@ -80,7 +80,7 @@ const UserSchema = new mongoose.Schema(
     },
     isOnline: {
       type: Boolean,
-      default: false, // Default to false when the user is not logged in
+      default: false,
     },
     verificationCodeExpiry: Date,
 

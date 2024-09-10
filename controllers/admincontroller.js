@@ -124,6 +124,7 @@ const getAllUser = async (req, res) => {
     // Lấy tất cả người dùng với vai trò là "customer" hoặc "seller"
     const query = { roleId: { $in: ["customer", "seller"] } };
 
+    // Truy vấn danh sách người dùng và phân trang
     const users = await User.find(query).skip(skip).limit(limit);
     const totalUsers = await User.countDocuments(query);
 
@@ -133,9 +134,18 @@ const getAllUser = async (req, res) => {
         .json({ success: false, msg: "Không tìm thấy người dùng" });
     }
 
+    // Cập nhật lastActive cho từng người dùng
+    const updatedUsers = await Promise.all(
+      users.map(async (user) => {
+        user.lastActive = Date.now();
+        await user.save();
+        return user;
+      })
+    );
+
     return res.status(200).json({
       success: true,
-      data: users,
+      data: updatedUsers, // Trả về danh sách người dùng đã được cập nhật
       total: totalUsers,
       page,
       totalPages: Math.ceil(totalUsers / limit),
@@ -146,8 +156,40 @@ const getAllUser = async (req, res) => {
   }
 };
 
+const updateOnlineStatus = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return next(errorHandler(404, "Người dùng không tồn tại"));
+    }
+
+    const currentTime = Date.now();
+    const timeout = 30 * 1000; // 30 giây không hoạt động
+
+    // Kiểm tra thời gian hoạt động cuối cùng (lastActive) để xác định trạng thái online
+    if (currentTime - user.lastActive > timeout) {
+      user.isOnline = false; // Người dùng đã không hoạt động quá lâu, set isOnline là false
+    } else {
+      user.isOnline = true; // Người dùng vẫn đang hoạt động
+    }
+
+    // Cập nhật thời gian hoạt động cuối cùng và trạng thái online
+    user.lastActive = currentTime;
+    await user.save();
+
+    // Truyền dữ liệu người dùng đã cập nhật cho các middleware hoặc route handlers khác
+    req.user = user;
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
   getAllUser,
+  updateOnlineStatus,
 };
