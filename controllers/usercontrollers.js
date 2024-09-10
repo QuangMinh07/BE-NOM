@@ -285,6 +285,9 @@ const loginUser = async (req, res, next) => {
 
     console.log("Token đã được lưu trong cookie: ", token);
 
+    user.isOnline = true;
+    await user.save();
+
     // Trả về phản hồi đăng nhập thành công
     res.status(200).json({
       success: true,
@@ -296,7 +299,33 @@ const loginUser = async (req, res, next) => {
         phoneNumber: user.phoneNumber,
         email: user.email,
         roleId: user.roleId,
+        isOnline: user.isOnline, // Return online status
       },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const logoutUser = async (req, res, next) => {
+  try {
+    // Find the user based on the ID from the token
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return next(errorHandler(404, "Người dùng không tồn tại"));
+    }
+
+    // Set the online status to false
+    user.isOnline = false;
+    await user.save();
+
+    // Clear the auth cookie
+    res.clearCookie("auth_token");
+
+    res.status(200).json({
+      success: true,
+      message: "Đăng xuất thành công",
     });
   } catch (error) {
     next(error);
@@ -516,4 +545,5 @@ module.exports = {
   resetPassword,
   changePassword,
   resendVerificationCode,
+  logoutUser, // Add this
 };

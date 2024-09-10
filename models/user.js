@@ -78,6 +78,10 @@ const UserSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    isOnline: {
+      type: Boolean,
+      default: false, // Default to false when the user is not logged in
+    },
     verificationCodeExpiry: Date,
 
     lastLogin: Date,

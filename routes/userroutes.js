@@ -8,7 +8,8 @@ const {
   sendResetPasswordEmail,
   resetPassword,
   changePassword,
-  resendVerificationCode
+  resendVerificationCode,
+  logoutUser,
 } = require("../controllers/usercontrollers");
 // const passport = require('passport');
 const { authenticateToken } = require("../middlewares/authMiddleware");
@@ -18,8 +19,9 @@ const router = express.Router();
 // Route cho đăng ký người dùng
 router.post("/register", registerUser);
 router.post("/login", loginUser);
+router.post("/logout", authenticateToken, logoutUser);
 router.post("/verify-email", verifyEmail); // Route để xác thực email
-router.post("/resend-verification-code", resendVerificationCode); 
+router.post("/resend-verification-code", resendVerificationCode);
 
 // Route để lấy thông tin profile (yêu cầu xác thực token)
 router.get("/profile", authenticateToken, getProfile);
