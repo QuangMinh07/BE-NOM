@@ -19,6 +19,11 @@ const changePassword = async (req, res) => {
       confirmNewPassword,
     });
 
+    // Kiểm tra nếu thiếu dữ liệu đầu vào
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      return res.status(400).json({ msg: "Vui lòng điền đầy đủ các trường." });
+    }
+
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ msg: "Không tìm thấy người dùng" });
