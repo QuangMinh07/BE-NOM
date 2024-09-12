@@ -408,7 +408,7 @@ const getProfile = async (req, res, next) => {
 };
 
 const updateUser = async (req, res, next) => {
-  const { phone, email, fullName, address, roleId } = req.body;
+  const { phone, email, fullName, address } = req.body;
 
   try {
     // Tìm người dùng dựa trên ID từ token
@@ -433,18 +433,11 @@ const updateUser = async (req, res, next) => {
       }
     }
 
-    // Kiểm tra xem roleId có hợp lệ không
-    const validRoles = ["admin", "customer", "seller", "shipper"];
-    if (roleId && !validRoles.includes(roleId)) {
-      return next(errorHandler(400, "Vai trò không hợp lệ"));
-    }
-
     // Cập nhật thông tin người dùng
     user.phoneNumber = phone || user.phoneNumber;
     user.email = email || user.email;
     user.fullName = fullName || user.fullName;
     user.address = address || user.address;
-    user.roleId = roleId || user.roleId;
 
     // Lưu thay đổi vào cơ sở dữ liệu
     await user.save();
@@ -459,7 +452,6 @@ const updateUser = async (req, res, next) => {
         email: user.email,
         fullName: user.fullName,
         address: user.address,
-        roleId: user.roleId,
       },
     });
   } catch (error) {
@@ -635,7 +627,6 @@ const checkApprovalStatus = async (req, res) => {
   }
 };
 
-
 module.exports = {
   registerUser,
   loginUser,
@@ -651,5 +642,5 @@ module.exports = {
   logoutUser, // Add this
   setOnlineStatus,
   registerSeller,
-  checkApprovalStatus
+  checkApprovalStatus,
 };
