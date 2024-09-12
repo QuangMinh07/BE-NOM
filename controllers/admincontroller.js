@@ -3,6 +3,7 @@ const bcryptjs = require("bcryptjs");
 const { errorHandler } = require("../utils/errorHandler");
 const jwt = require("jsonwebtoken");
 const User = require("../models/user");
+const Store = require("../models/store");
 
 const registerAdmin = async (req, res, next) => {
   const { username, fullName, password } = req.body;
@@ -146,8 +147,53 @@ const getAllUser = async (req, res) => {
   }
 };
 
+const approveSeller = async (req, res) => {
+  const { userId } = req.body; // Chỉ cần userId từ request body
+
+  try {
+    // Tìm kiếm người dùng dựa trên userId
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "Người dùng không tồn tại" });
+    }
+
+    // Kiểm tra xem người dùng đã đăng ký làm người bán chưa và chưa được duyệt
+    if (user.roleId !== "seller" || user.isApproved) {
+      return res.status(400).json({
+        message: "Người dùng không trong trạng thái chờ duyệt làm người bán",
+      });
+    }
+
+    // Duyệt người bán
+    user.isApproved = true;
+
+    // Tạo cửa hàng mới cho người bán với thông tin tự động từ user
+    const newStore = new Store({
+      storeName: user.storeName, // Lấy từ thông tin của người dùng
+      owner: userId,
+      storeAddress: user.storeAddress,
+      bankAccount: user.bankAccount,
+      foodType: user.foodType,
+    });
+
+    // Lưu thông tin người dùng và cửa hàng
+    await Promise.all([user.save(), newStore.save()]);
+
+    res.status(200).json({
+      message: "Người bán đã được duyệt và cửa hàng đã được tạo thành công",
+      user,
+      store: newStore,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
   getAllUser,
+  approveSeller,
 };

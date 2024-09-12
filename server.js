@@ -11,16 +11,19 @@ const { globalErrorHandler } = require("./utils/errorHandler"); // Import global
 const userRoute = require("./routes/userroutes");
 const userPersonalRoute = require("./routes/userPersonalroutes");
 const adminRoute = require("./routes/adminroutes");
+const foodRoute = require("./routes/foodroute");
 
 const app = express();
 // app.use(passport.initialize());
 
 const port = process.env.PORT || 8888;
 
-app.use(cors({
-  origin: true, 
-  credentials: true, 
-}));
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 
@@ -32,6 +35,7 @@ dbConnect();
 app.use("/v1/user", userRoute);
 app.use("/v1/userPersonal", userPersonalRoute);
 app.use("/v1/admin", adminRoute);
+app.use("/v1/food", foodRoute);
 
 // Xử lý tất cả các request không khớp với các route khác và trả về file index.html cho client-side routing
 app.get("*", (req, res) => {

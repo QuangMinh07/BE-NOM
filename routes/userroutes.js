@@ -10,7 +10,9 @@ const {
   changePassword,
   resendVerificationCode,
   logoutUser,
-  setOnlineStatus
+  setOnlineStatus,
+  registerSeller,
+  checkApprovalStatus,
 } = require("../controllers/usercontrollers");
 // const passport = require('passport');
 const { authenticateToken } = require("../middlewares/authMiddleware");
@@ -31,6 +33,9 @@ router.put("/update", authenticateToken, updateUser); // Route cho cập nhật 
 router.post("/send-reset-password", sendResetPasswordEmail);
 router.post("/reset-password", resetPassword);
 router.put("/changePassword/:userId", authenticateToken, changePassword);
+router.post("/register-seller", authenticateToken, registerSeller);
+router.get("/check-approval", authenticateToken, checkApprovalStatus);
+
 // router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 // router.get('/google/callback',
 //   passport.authenticate('google', { session: false, failureRedirect: '/login' }),

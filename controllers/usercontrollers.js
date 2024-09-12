@@ -540,17 +540,101 @@ const setOnlineStatus = async (req, res) => {
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ success: false, msg: "Người dùng không tồn tại" });
+      return res
+        .status(404)
+        .json({ success: false, msg: "Người dùng không tồn tại" });
     }
 
     user.isOnline = isOnline;
     await user.save();
 
-    res.status(200).json({ success: true, msg: `Trạng thái đã được cập nhật thành ${isOnline ? "on" : "off"}` });
+    res.status(200).json({
+      success: true,
+      msg: `Trạng thái đã được cập nhật thành ${isOnline ? "on" : "off"}`,
+    });
   } catch (error) {
-    res.status(500).json({ success: false, msg: "Cập nhật trạng thái thất bại", error: error.message });
+    res.status(500).json({
+      success: false,
+      msg: "Cập nhật trạng thái thất bại",
+      error: error.message,
+    });
   }
 };
+
+const registerSeller = async (req, res) => {
+  const {
+    userId,
+    representativeName,
+    cccd,
+    storeName,
+    foodType,
+    businessType,
+    bankAccount,
+    storeAddress,
+    idImage,
+  } = req.body;
+
+  try {
+    // Tìm kiếm người dùng dựa trên userId
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "Người dùng không tồn tại" });
+    }
+
+    // Kiểm tra xem tài khoản này đã là người bán hay chưa
+    if (user.roleId === "seller") {
+      return res.status(400).json({ message: "Tài khoản đã là người bán" });
+    }
+
+    // Cập nhật tài khoản thành người bán
+    user.roleId = "seller";
+    user.representativeName = representativeName || user.representativeName;
+    user.cccd = cccd || user.cccd; // CCCD/CMND
+    user.storeName = storeName || user.storeName;
+    user.foodType = foodType || user.foodType;
+    user.businessType = businessType || user.businessType;
+    user.bankAccount = bankAccount || user.bankAccount;
+    user.storeAddress = storeAddress || user.storeAddress;
+    user.idImage = idImage || user.idImage;
+    user.isApproved = false; // Đặt trạng thái chờ duyệt
+
+    // Lưu lại các thay đổi cho người dùng
+    await user.save();
+
+    res.status(200).json({
+      message: "Đăng ký người bán thành công, chờ admin duyệt",
+      user,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
+const checkApprovalStatus = async (req, res) => {
+  const { userId } = req.body; // Lấy userId từ body
+
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "Người dùng không tồn tại" });
+    }
+
+    if (user.roleId !== "seller" || !user.isApproved) {
+      return res
+        .status(403)
+        .json({ message: "Tài khoản chưa được duyệt làm người bán" });
+    }
+
+    res.status(200).json({ message: "Người bán đã được duyệt" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
 
 module.exports = {
   registerUser,
@@ -565,5 +649,7 @@ module.exports = {
   changePassword,
   resendVerificationCode,
   logoutUser, // Add this
-  setOnlineStatus
+  setOnlineStatus,
+  registerSeller,
+  checkApprovalStatus
 };

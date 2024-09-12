@@ -46,6 +46,12 @@ const UserSchema = new mongoose.Schema(
       default: "customer",
       required: true,
     },
+
+    isApproved: {
+      type: Boolean,
+      default: false, // Trạng thái mặc định là chưa được duyệt
+    },
+
     address: {
       type: String,
       trim: true,
@@ -85,6 +91,47 @@ const UserSchema = new mongoose.Schema(
     verificationCodeExpiry: Date,
 
     lastLogin: Date,
+
+    representativeName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    cccd: {
+      type: String, // Số CCCD hoặc CMND
+      trim: true,
+      default: "",
+    },
+    storeName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    foodType: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    businessType: {
+      type: String, // Loại kinh doanh
+      trim: true,
+      default: "",
+    },
+    bankAccount: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    storeAddress: {
+      type: String, // Địa chỉ cửa hàng
+      trim: true,
+      default: "",
+    },
+    idImage: {
+      type: String,
+      trim: true,
+      default: "",
+    },
   },
   {
     validateBeforeSave: true,
