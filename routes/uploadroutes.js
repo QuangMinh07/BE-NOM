@@ -1,9 +1,9 @@
 const express = require('express');
 const { uploadFile } = require('../controllers/UploadImage'); 
-const { authMiddleware } = require('../middlewares/authMiddleware');
+const { authenticateToken } = require('../middlewares/authMiddleware');
 const router = express.Router();
 
-router.post('/upload', authMiddleware,uploadFile.single('image'), async (req, res) => {
+router.post('/upload', authenticateToken,uploadFile.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'Không có ảnh được tải lên.' });
