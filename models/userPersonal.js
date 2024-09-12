@@ -9,30 +9,37 @@ const UserPersonalInfoSchema = new mongoose.Schema(
     },
     dateOfBirth: {
       type: Date,
+      default: "",
     },
     gender: {
       type: String,
       enum: ["Male", "Female", "Other"],
+      default: "",
     },
     city: {
       type: String,
       trim: true,
+      default: "",
     },
     state: {
       type: String,
       trim: true,
+      default: "",
     },
     postalCode: {
       type: String,
       trim: true,
+      default: "",
     },
     country: {
       type: String,
       trim: true,
+      default: "",
     },
     profilePictureURL: {
       type: String,
       trim: true,
+      default: "",
     },
   },
   {
@@ -42,6 +49,9 @@ const UserPersonalInfoSchema = new mongoose.Schema(
 
 UserPersonalInfoSchema.index({ userId: 1 });
 
-const UserPersonalInfo = mongoose.model("UserPersonalInfo", UserPersonalInfoSchema);
+const UserPersonalInfo = mongoose.model(
+  "UserPersonalInfo",
+  UserPersonalInfoSchema
+);
 
 module.exports = UserPersonalInfo;
