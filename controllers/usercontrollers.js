@@ -313,7 +313,6 @@ const loginUser = async (req, res, next) => {
     next(error);
   }
 };
-F
 
 const logoutUser = async (req, res, next) => {
   try {
