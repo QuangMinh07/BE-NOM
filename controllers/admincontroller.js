@@ -117,15 +117,38 @@ const loginAdmin = async (req, res, next) => {
 
 const getAllUser = async (req, res) => {
   try {
-    const { role } = req.query;
+    const {
+      sortField = "userName", // Mặc định sắp xếp theo tên
+      sortOrder = "asc", // Mặc định sắp xếp tăng dần (A -> Z)
+      role, // Lọc theo vai trò customer, seller, shipper
+      isOnline, // Lọc theo trạng thái online hoặc offline
+    } = req.query;
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    // Lấy tất cả người dùng với vai trò là "customer" hoặc "seller"
-    const query = { roleId: { $in: ["customer", "seller"] } };
+    // Lọc người dùng theo vai trò nếu có truyền
+    const query = role
+      ? { roleId: role }
+      : { roleId: { $in: ["customer", "seller", "shipper"] } };
 
-    const users = await User.find(query).skip(skip).limit(limit);
+    // Nếu có truyền isOnline, thêm điều kiện lọc online hoặc offline
+    if (typeof isOnline !== "undefined") {
+      query.isOnline = isOnline === "true"; // Chuyển giá trị isOnline từ string thành Boolean
+    }
+
+    // Tạo đối tượng sắp xếp
+    const sortOptions = {};
+    if (sortField && sortOrder) {
+      sortOptions[sortField] = sortOrder === "asc" ? 1 : -1;
+    }
+
+    // Lấy danh sách người dùng theo sắp xếp và phân trang
+    const users = await User.find(query)
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(limit);
     const totalUsers = await User.countDocuments(query);
 
     if (users.length === 0) {
@@ -218,6 +241,8 @@ const rejectSeller = async (req, res) => {
     user.bankAccount = "";
     user.storeAddress = "";
     user.idImage = "";
+    user.cccd = "";
+    user.representativeName = "";
 
     // Lưu thay đổi người dùng
     await user.save();
