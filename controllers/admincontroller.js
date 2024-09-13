@@ -191,9 +191,51 @@ const approveSeller = async (req, res) => {
   }
 };
 
+const rejectSeller = async (req, res) => {
+  const { userId } = req.body; // Chỉ cần userId từ request body
+
+  try {
+    // Tìm kiếm người dùng dựa trên userId
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "Người dùng không tồn tại" });
+    }
+
+    // Kiểm tra xem người dùng có phải người bán đang chờ duyệt hay không
+    if (user.roleId !== "seller" || user.isApproved) {
+      return res.status(400).json({
+        message: "Người dùng không trong trạng thái chờ duyệt làm người bán",
+      });
+    }
+
+    // Thay đổi vai trò về lại "customer"
+    user.roleId = "customer";
+    user.isApproved = false;
+    user.storeName = "";
+    user.foodType = "";
+    user.businessType = "";
+    user.bankAccount = "";
+    user.storeAddress = "";
+    user.idImage = "";
+
+    // Lưu thay đổi người dùng
+    await user.save();
+
+    res.status(200).json({
+      message: "Người dùng đã bị từ chối và quay lại vai trò customer",
+      user,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
   getAllUser,
   approveSeller,
+  rejectSeller,
 };

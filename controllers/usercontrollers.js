@@ -261,6 +261,16 @@ const loginUser = async (req, res, next) => {
       );
     }
 
+    // Kiểm tra trạng thái chờ duyệt nếu người dùng là "seller"
+    if (user.roleId === "seller" && !user.isApproved) {
+      return next(
+        errorHandler(
+          403,
+          "Tài khoản của bạn đang trong trạng thái chờ duyệt, bạn không được phép đăng nhập. Xin cảm ơn!"
+        )
+      );
+    }
+
     // Kiểm tra mật khẩu
     const isMatch = await bcryptjs.compare(password, user.password);
     if (!isMatch) {
@@ -274,13 +284,10 @@ const loginUser = async (req, res, next) => {
       { expiresIn: "7d" } // Token expires in 7 days
     );
 
-    // Set cookie with token
+    // Set cookie với token
     res.cookie("auth_token", token, {
       httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      // Remove sameSite and secure for testing purposes
-      // sameSite: 'Strict',
-      // secure: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày
     });
 
     console.log("Token đã được lưu trong cookie: ", token);
@@ -299,13 +306,14 @@ const loginUser = async (req, res, next) => {
         phoneNumber: user.phoneNumber,
         email: user.email,
         roleId: user.roleId,
-        isOnline: user.isOnline, // Return online status
+        isOnline: user.isOnline, // Trả về trạng thái online
       },
     });
   } catch (error) {
     next(error);
   }
 };
+F
 
 const logoutUser = async (req, res, next) => {
   try {

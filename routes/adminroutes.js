@@ -4,6 +4,7 @@ const {
   loginAdmin,
   getAllUser,
   approveSeller,
+  rejectSeller,
 } = require("../controllers/admincontroller");
 const { authenticateToken } = require("../middlewares/authMiddleware"); // Import the middleware
 const router = express.Router();
@@ -15,5 +16,6 @@ router.post("/login", loginAdmin);
 // Protect the getAllUser route with authentication middleware
 router.get("/get-all-user", authenticateToken, getAllUser);
 router.post("/approve-seller", authenticateToken, approveSeller);
+router.post("/reject-seller", authenticateToken, rejectSeller);
 
 module.exports = router;
