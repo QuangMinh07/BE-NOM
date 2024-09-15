@@ -200,8 +200,11 @@ const approveSeller = async (req, res) => {
       foodType: user.foodType,
     });
 
-    // Lưu thông tin người dùng và cửa hàng
+    // Lưu thông tin người dùng và cửa hàng, đồng thời tăng storeCount
     await Promise.all([user.save(), newStore.save()]);
+
+    // Tăng số lượng cửa hàng của người dùng
+    await User.findByIdAndUpdate(userId, { $inc: { storeCount: 1 } });
 
     res.status(200).json({
       message: "Người bán đã được duyệt và cửa hàng đã được tạo thành công",
@@ -257,10 +260,22 @@ const rejectSeller = async (req, res) => {
   }
 };
 
+const getStoreCount = async (req, res) => {
+  try {
+    const { userId } = req.body; // Chỉ cần userId từ request body
+    const user = await User.findById(userId);
+
+    return res.status(200).json({ storeCount: user.storeCount });
+  } catch (error) {
+    return res.status(500).json({ message: "Đã xảy ra lỗi", error });
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
   getAllUser,
   approveSeller,
   rejectSeller,
+  getStoreCount,
 };

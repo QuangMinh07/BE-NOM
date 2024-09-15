@@ -132,6 +132,11 @@ const UserSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    storeCount: {
+      type: Number,
+      default: 0, // Số lượng cửa hàng bắt đầu từ 0
+      min: 0, // Giá trị tối thiểu của storeCount là 0
+    },
   },
   {
     validateBeforeSave: true,
