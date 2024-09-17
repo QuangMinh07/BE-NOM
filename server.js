@@ -14,6 +14,7 @@ const adminRoute = require("./routes/adminroutes");
 const foodRoute = require("./routes/foodroute");
 const uploadRoute = require("./routes/uploadroutes");
 const storeRoute = require("./routes/storeroutes");
+const staffRoute = require("./routes/staffroutes");
 
 
 const app = express();
@@ -41,6 +42,8 @@ app.use("/v1/admin", adminRoute);
 app.use("/v1/food", foodRoute);
 app.use("/v1/upload", uploadRoute);
 app.use("/v1/store", storeRoute);
+app.use("/v1/staff", staffRoute);
+
 
 
 // Xử lý tất cả các request không khớp với các route khác và trả về file index.html cho client-side routing

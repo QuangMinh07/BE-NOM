@@ -102,28 +102,15 @@ const UserSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
-    storeName: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    foodType: {
-      type: String,
-      trim: true,
-      default: "",
-    },
+
+    storeIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Store", // Tham chiếu đến mô hình Store
+      },
+    ],
     businessType: {
       type: String, // Loại kinh doanh
-      trim: true,
-      default: "",
-    },
-    bankAccount: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-    storeAddress: {
-      type: String, // Địa chỉ cửa hàng
       trim: true,
       default: "",
     },

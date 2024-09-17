@@ -4,6 +4,7 @@ const { errorHandler } = require("../utils/errorHandler");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const argon2 = require("argon2");
+const Store = require("../models/store");
 
 // const firebase = require("../firebase");
 
@@ -161,6 +162,11 @@ const registerUser = async (req, res, next) => {
   // Kiểm tra độ dài password
   if (password.length < 8) {
     return next(errorHandler(400, "Mật khẩu phải có ít nhất 8 ký tự"));
+  }
+
+  const phoneRegex = /^[0-9]{10}$/;
+  if (!phoneRegex.test(phone)) {
+    return next(errorHandler(400, "Số điện thoại phải bao gồm đúng 10 chữ số"));
   }
 
   try {
@@ -586,24 +592,46 @@ const registerSeller = async (req, res) => {
       return res.status(400).json({ message: "Tài khoản đã là người bán" });
     }
 
-    // Cập nhật tài khoản thành người bán
+    const newStore = new Store({
+      storeName: storeName || "",
+      storeAddress: storeAddress || "",
+      bankAccount: bankAccount || "",
+      foodType: foodType || "",
+      owner: userId,
+    });
+
+    // Lưu thông tin cửa hàng
+    await newStore.save();
+
+    console.log("New store created with ID:", newStore._id);
+
+    // Cập nhật các trường khác cho người dùng
     user.roleId = "seller";
     user.representativeName = representativeName || user.representativeName;
-    user.cccd = cccd || user.cccd; // CCCD/CMND
-    user.storeName = storeName || user.storeName;
-    user.foodType = foodType || user.foodType;
+    user.cccd = cccd || user.cccd;
     user.businessType = businessType || user.businessType;
-    user.bankAccount = bankAccount || user.bankAccount;
-    user.storeAddress = storeAddress || user.storeAddress;
     user.idImage = idImage || user.idImage;
     user.isApproved = false; // Đặt trạng thái chờ duyệt
 
-    // Lưu lại các thay đổi cho người dùng
+    // Thêm storeId vào danh sách storeIds của người dùng
+    user.storeIds.push(newStore._id);
+    console.log("Store IDs after adding new store:", user.storeIds);
+
+    // Lưu lại người dùng sau khi cập nhật
     await user.save();
 
+    // Lấy lại thông tin người dùng và populate các cửa hàng liên kết
+    const populatedUser = await User.findById(userId).populate({
+      path: "storeIds",
+      model: "Store",
+      select: "storeName storeAddress bankAccount foodType createdAt",
+    });
+    console.log("Populated user with store details:", populatedUser);
+
+    // Trả về thông tin người dùng và cửa hàng sau khi đăng ký thành công
     res.status(200).json({
       message: "Đăng ký người bán thành công, chờ admin duyệt",
-      user,
+      user: populatedUser,
     });
   } catch (error) {
     console.error(error);

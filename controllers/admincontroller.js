@@ -93,10 +93,15 @@ const loginAdmin = async (req, res, next) => {
         fullName: admin.fullName,
       },
       process.env.JWT_SECRET,
-      {
-        expiresIn: "1h",
-      }
+      { expiresIn: "7d" } // Thời gian tồn tại token là 7 ngày
     );
+
+    // Lưu token vào cookie
+    res.cookie("accessToken", token, {
+      httpOnly: true, // Đảm bảo cookie chỉ được sử dụng trong HTTP, không thể truy cập từ JavaScript
+      secure: false, // Đảm bảo cookie chỉ được gửi qua HTTPS
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 ngày (tính bằng milliseconds)
+    });
 
     // Trả về phản hồi đăng nhập thành công
     res.status(200).json({
@@ -144,11 +149,17 @@ const getAllUser = async (req, res) => {
       sortOptions[sortField] = sortOrder === "asc" ? 1 : -1;
     }
 
-    // Lấy danh sách người dùng theo sắp xếp và phân trang
+    // Lấy danh sách người dùng theo sắp xếp và phân trang, đồng thời populate storeIds
     const users = await User.find(query)
       .sort(sortOptions)
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .populate({
+        path: "storeIds",
+        model: "Store",
+        select: "storeName storeAddress bankAccount foodType createdAt", // Lấy các trường từ Store
+      });
+
     const totalUsers = await User.countDocuments(query);
 
     if (users.length === 0) {
@@ -171,11 +182,11 @@ const getAllUser = async (req, res) => {
 };
 
 const approveSeller = async (req, res) => {
-  const { userId } = req.body; // Chỉ cần userId từ request body
+  const { userId } = req.body;
 
   try {
     // Tìm kiếm người dùng dựa trên userId
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).populate("storeIds"); // Populate để lấy thông tin cửa hàng
 
     if (!user) {
       return res.status(404).json({ message: "Người dùng không tồn tại" });
@@ -191,25 +202,15 @@ const approveSeller = async (req, res) => {
     // Duyệt người bán
     user.isApproved = true;
 
-    // Tạo cửa hàng mới cho người bán với thông tin tự động từ user
-    const newStore = new Store({
-      storeName: user.storeName, // Lấy từ thông tin của người dùng
-      owner: userId,
-      storeAddress: user.storeAddress,
-      bankAccount: user.bankAccount,
-      foodType: user.foodType,
-    });
-
-    // Lưu thông tin người dùng và cửa hàng, đồng thời tăng storeCount
-    await Promise.all([user.save(), newStore.save()]);
-
     // Tăng số lượng cửa hàng của người dùng
     await User.findByIdAndUpdate(userId, { $inc: { storeCount: 1 } });
 
+    // Lưu thông tin người dùng
+    await user.save();
+
     res.status(200).json({
-      message: "Người bán đã được duyệt và cửa hàng đã được tạo thành công",
+      message: "Người bán đã được duyệt thành công",
       user,
-      store: newStore,
     });
   } catch (error) {
     console.error(error);
@@ -235,6 +236,9 @@ const rejectSeller = async (req, res) => {
       });
     }
 
+    // Xóa tất cả các cửa hàng liên kết với userId
+    await Store.deleteMany({ owner: userId });
+
     // Thay đổi vai trò về lại "customer"
     user.roleId = "customer";
     user.isApproved = false;
@@ -247,11 +251,15 @@ const rejectSeller = async (req, res) => {
     user.cccd = "";
     user.representativeName = "";
 
+    // Xóa danh sách storeIds
+    user.storeIds = [];
+
     // Lưu thay đổi người dùng
     await user.save();
 
     res.status(200).json({
-      message: "Người dùng đã bị từ chối và quay lại vai trò customer",
+      message:
+        "Người dùng đã bị từ chối và quay lại vai trò customer. Cửa hàng đã bị xóa.",
       user,
     });
   } catch (error) {
