@@ -257,6 +257,12 @@ const loginUser = async (req, res, next) => {
       return next(errorHandler(400, "Số điện thoại không chính xác"));
     }
 
+    // Kiểm tra mật khẩu
+    const isMatch = await bcryptjs.compare(password, user.password);
+    if (!isMatch) {
+      return next(errorHandler(400, "Mật khẩu không chính xác"));
+    }
+
     // Kiểm tra trạng thái xác thực
     if (!user.isVerified) {
       return next(
@@ -275,12 +281,6 @@ const loginUser = async (req, res, next) => {
           "Tài khoản của bạn đang trong trạng thái chờ duyệt, bạn không được phép đăng nhập. Xin cảm ơn!"
         )
       );
-    }
-
-    // Kiểm tra mật khẩu
-    const isMatch = await bcryptjs.compare(password, user.password);
-    if (!isMatch) {
-      return next(errorHandler(400, "Mật khẩu không chính xác"));
     }
 
     // Tạo token xác thực
