@@ -4,7 +4,7 @@ const express = require("express");
 const dbConnect = require("./config/dbConnect");
 const cookieParser = require("cookie-parser");
 const path = require("path");
-const bodyParser = require('body-parser');
+const bodyParser = require("body-parser");
 const { globalErrorHandler } = require("./utils/errorHandler"); // Import globalErrorHandler từ errorHandler.js
 // const passport = require('passport');
 // require('./passport'); // Đảm bảo rằng file cấu hình passport đã được import
@@ -16,7 +16,6 @@ const foodRoute = require("./routes/foodroute");
 const uploadRoute = require("./routes/uploadroutes");
 const storeRoute = require("./routes/storeroutes");
 const staffRoute = require("./routes/staffroutes");
-
 
 const app = express();
 // app.use(passport.initialize());
@@ -45,8 +44,7 @@ app.use("/v1/upload", uploadRoute);
 app.use("/v1/store", storeRoute);
 app.use("/v1/staff", staffRoute);
 
-app.use(bodyParser.json({ limit: '50mb' })); // Để xử lý JSON lớn, bao gồm dữ liệu Base64
-
+app.use(bodyParser.json({ limit: "50mb" })); // Để xử lý JSON lớn, bao gồm dữ liệu Base64
 
 // Xử lý tất cả các request không khớp với các route khác và trả về file index.html cho client-side routing
 app.get("*", (req, res) => {

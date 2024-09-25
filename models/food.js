@@ -21,7 +21,6 @@ const FoodSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId, // Liên kết với cửa hàng
     ref: "Store",
     required: true,
-    default: "",
   },
   imageUrl: {
     type: String, // Đường dẫn tới ảnh của món
@@ -37,6 +36,11 @@ const FoodSchema = new mongoose.Schema({
     type: Boolean, // Tình trạng còn món hay không
     default: false,
   },
+  isForSale: {
+    type: Boolean,
+    default: false, // Đảm bảo kiểu dữ liệu là Boolean
+  },
+
   sellingTime: [
     {
       day: {

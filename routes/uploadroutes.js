@@ -16,9 +16,14 @@ router.post("/upload", upload.single("image"), (req, res) => {
 
 router.post("/uploadBase64", async (req, res) => {
   try {
-    const { imageBase64 } = req.body; // Lấy Base64 image từ client
+    console.log("Received payload:", req.body);
+    // Kiểm tra nếu imageBase64 có dữ liệu hợp lệ không
+    const { imageBase64 } = req.body;
 
-    // Đảm bảo Base64 có tiền tố 'data:image/png;base64,' hoặc tương tự
+    if (!imageBase64) {
+      return res.status(400).json({ message: "Thiếu dữ liệu Base64!" });
+    }
+
     if (!imageBase64.startsWith("data:image")) {
       return res.status(400).json({ message: "Sai định dạng Base64!" });
     }
