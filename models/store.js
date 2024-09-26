@@ -24,6 +24,26 @@ const StoreSchema = new mongoose.Schema({
     type: String,
     trim: true,
   },
+  sellingTime: [
+    {
+      day: {
+        type: String, // Ngày bán (ví dụ: Monday, Tuesday, v.v.)
+        default: "", // Giá trị mặc định là chuỗi rỗng
+      },
+      timeSlots: [
+        {
+          open: {
+            type: String, // Thời gian mở bán (hh:mm)
+            default: "", // Giá trị mặc định là chuỗi rỗng
+          },
+          close: {
+            type: String, // Thời gian đóng bán (hh:mm)
+            default: "", // Giá trị mặc định là chuỗi rỗng
+          },
+        },
+      ],
+    },
+  ],
   createdAt: {
     type: Date,
     default: Date.now,

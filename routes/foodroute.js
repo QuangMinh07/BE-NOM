@@ -13,6 +13,6 @@ router.put("/update-availability/:foodId", authenticateToken, updateFoodAvailabi
 router.delete("/delete/:foodId", deleteFoodItem); // Route xóa món ăn
 
 // Route lấy tất cả món ăn của cửa hàng dựa trên storeId
-router.get("/get-foodstore/:storeId/foods", authenticateToken, getFoodsByStoreId);
+router.get("/get-foodstore/:storeId", authenticateToken, getFoodsByStoreId);
 
 module.exports = router;

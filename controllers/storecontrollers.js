@@ -11,15 +11,10 @@ const getStoreByUser = async (req, res) => {
     }
 
     // Tìm cửa hàng theo userId
-    const store = await Store.findOne({ owner: userId }).populate(
-      "owner",
-      "userName email"
-    );
+    const store = await Store.findOne({ owner: userId }).populate("owner", "userName email");
 
     if (!store) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Không tìm thấy cửa hàng" });
+      return res.status(404).json({ success: false, message: "Không tìm thấy cửa hàng" });
     }
 
     res.status(200).json({
@@ -32,7 +27,32 @@ const getStoreByUser = async (req, res) => {
   }
 };
 
-// Hàm cập nhật tên và địa chỉ cửa hàng theo storeId
+// Hàm lấy thông tin cửa hàng theo storeId từ params
+const getStoreById = async (req, res) => {
+  try {
+    const { storeId } = req.params; // Lấy storeId từ params
+
+    if (!storeId) {
+      return res.status(400).json({ success: false, message: "Thiếu storeId" });
+    }
+
+    // Tìm cửa hàng bằng storeId
+    const store = await Store.findById(storeId).populate("owner", "userName email");
+
+    if (!store) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy cửa hàng" });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: store,
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy cửa hàng:", error.message);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ" });
+  }
+};
+
 const updateStoreById = async (req, res) => {
   try {
     const { storeId } = req.params; // Lấy storeId từ params
@@ -44,17 +64,13 @@ const updateStoreById = async (req, res) => {
 
     // Kiểm tra nếu không có dữ liệu để cập nhật
     if (!storeName && !storeAddress) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Không có thông tin để cập nhật" });
+      return res.status(400).json({ success: false, message: "Không có thông tin để cập nhật" });
     }
 
     // Tìm cửa hàng bằng storeId
     const store = await Store.findById(storeId);
     if (!store) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Không tìm thấy cửa hàng" });
+      return res.status(404).json({ success: false, message: "Không tìm thấy cửa hàng" });
     }
 
     // Cập nhật thông tin cửa hàng
@@ -74,15 +90,11 @@ const updateStoreById = async (req, res) => {
 
     if (user) {
       // Tìm và cập nhật thông tin cửa hàng trong mảng `storeIds`
-      const storeIndex = user.storeIds.findIndex(
-        (userStore) => userStore._id.toString() === storeId
-      );
+      const storeIndex = user.storeIds.findIndex((userStore) => userStore._id.toString() === storeId);
 
       if (storeIndex !== -1) {
-        user.storeIds[storeIndex].storeName =
-          storeName || user.storeIds[storeIndex].storeName;
-        user.storeIds[storeIndex].storeAddress =
-          storeAddress || user.storeIds[storeIndex].storeAddress;
+        user.storeIds[storeIndex].storeName = storeName || user.storeIds[storeIndex].storeName;
+        user.storeIds[storeIndex].storeAddress = storeAddress || user.storeIds[storeIndex].storeAddress;
       }
 
       // Lưu lại người dùng sau khi cập nhật
@@ -95,7 +107,7 @@ const updateStoreById = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Cập nhật thông tin cửa hàng và người dùng thành công",
-      store,
+      store, // Trả về store đã được cập nhật
       user, // Trả về thông tin người dùng đã cập nhật
     });
   } catch (error) {
@@ -103,6 +115,7 @@ const updateStoreById = async (req, res) => {
     res.status(500).json({ success: false, message: "Lỗi máy chủ" });
   }
 };
+
 
 // Hàm tạo cửa hàng mới dựa trên userId
 const createStore = async (req, res) => {
@@ -175,9 +188,7 @@ const deleteStoreById = async (req, res) => {
     // Tìm cửa hàng bằng storeId
     const store = await Store.findById(storeId);
     if (!store) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Không tìm thấy cửa hàng" });
+      return res.status(404).json({ success: false, message: "Không tìm thấy cửa hàng" });
     }
 
     // Xóa cửa hàng từ bảng `Store`
@@ -187,9 +198,7 @@ const deleteStoreById = async (req, res) => {
     const user = await User.findById(store.owner);
     if (user) {
       // Lọc lại mảng `storeIds`, loại bỏ cửa hàng có `storeId`
-      user.storeIds = user.storeIds.filter(
-        (userStoreId) => userStoreId.toString() !== storeId
-      );
+      user.storeIds = user.storeIds.filter((userStoreId) => userStoreId.toString() !== storeId);
 
       // Giảm số lượng cửa hàng
       user.storeCount = Math.max(0, user.storeCount - 1); // Đảm bảo không bị âm
@@ -218,10 +227,115 @@ const deleteStoreById = async (req, res) => {
   }
 };
 
+const addSellingTimeToStore = async (req, res) => {
+  try {
+    console.log("Request nhận được từ client:", req.body); // Log request nhận được
+
+    const { storeId } = req.params;
+    const { sellingTime } = req.body;
+
+    // Kiểm tra storeId
+    if (!storeId) {
+      console.log("Thiếu storeId trong params");
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu storeId",
+      });
+    }
+
+    // Kiểm tra dữ liệu sellingTime
+    if (!sellingTime || !Array.isArray(sellingTime)) {
+      console.log("Dữ liệu sellingTime không hợp lệ hoặc thiếu");
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu hoặc dữ liệu thời gian bán không hợp lệ",
+      });
+    }
+
+    // Kiểm tra chi tiết sellingTime
+    for (const day of sellingTime) {
+      if (!day.day || !Array.isArray(day.timeSlots)) {
+        console.log("Ngày hoặc timeSlots không hợp lệ cho ngày:", day);
+        return res.status(400).json({
+          success: false,
+          message: "Dữ liệu ngày hoặc timeSlots không hợp lệ",
+        });
+      }
+
+      for (const slot of day.timeSlots) {
+        if (!slot.open || !slot.close) {
+          console.log("Giờ mở hoặc giờ đóng không hợp lệ cho slot:", slot);
+          return res.status(400).json({
+            success: false,
+            message: "Dữ liệu giờ mở/đóng không hợp lệ",
+          });
+        }
+      }
+    }
+
+    // Tìm cửa hàng bằng storeId
+    const store = await Store.findById(storeId);
+    if (!store) {
+      console.log("Không tìm thấy cửa hàng với storeId:", storeId);
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy cửa hàng",
+      });
+    }
+
+    // Định dạng lại dữ liệu sellingTime
+    const formattedSellingTime = sellingTime.map((dayData) => {
+      if (dayData.is24h) {
+        return {
+          day: dayData.day,
+          is24h: true,
+          timeSlots: [
+            {
+              open: "00:00",
+              close: "23:59",
+            },
+          ],
+        };
+      } else {
+        return {
+          day: dayData.day,
+          is24h: false,
+          timeSlots: dayData.timeSlots.map((slot) => ({
+            open: slot.open,
+            close: slot.close,
+          })),
+        };
+      }
+    });
+
+    // Thêm thời gian bán hàng mới vào store
+    console.log("Thêm thời gian bán hàng:", formattedSellingTime);
+    store.sellingTime = [...store.sellingTime, ...formattedSellingTime];
+    store.updatedAt = Date.now();
+
+    // Lưu thông tin store
+    await store.save();
+
+    console.log("Lưu thành công thời gian bán hàng cho store:", storeId);
+    res.status(200).json({
+      success: true,
+      message: "Thêm thời gian bán hàng thành công",
+      store,
+    });
+  } catch (error) {
+    console.error("Lỗi khi thêm thời gian bán hàng:", error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi máy chủ",
+    });
+  }
+};
 
 module.exports = {
   getStoreByUser,
   updateStoreById,
   createStore,
   deleteStoreById,
+  addSellingTimeToStore,
+  getStoreById,
 };

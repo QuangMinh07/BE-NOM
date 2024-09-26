@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const argon2 = require("argon2");
 const Store = require("../models/store");
+const Staff = require("../models/staff"); // Đường dẫn tới modal Staff của bạn
 
 // const firebase = require("../firebase");
 
@@ -33,18 +34,13 @@ const changePassword = async (req, res) => {
     console.log("User found:", user);
 
     // Use bcryptjs to verify the current password
-    const isPasswordValid = await bcryptjs.compare(
-      currentPassword,
-      user.password
-    );
+    const isPasswordValid = await bcryptjs.compare(currentPassword, user.password);
     if (!isPasswordValid) {
       return res.status(401).json({ msg: "Mật khẩu hiện tại không đúng" });
     }
 
     if (newPassword !== confirmNewPassword) {
-      return res
-        .status(400)
-        .json({ msg: "Mật khẩu mới và xác nhận mật khẩu không khớp" });
+      return res.status(400).json({ msg: "Mật khẩu mới và xác nhận mật khẩu không khớp" });
     }
 
     // Use bcryptjs to hash the new password
@@ -105,9 +101,7 @@ const resetPassword = async (req, res) => {
 
     await transporter.sendMail(mailOptions);
 
-    res
-      .status(200)
-      .json({ success: true, msg: "Mật khẩu đã được cập nhật thành công" });
+    res.status(200).json({ success: true, msg: "Mật khẩu đã được cập nhật thành công" });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -123,15 +117,11 @@ const sendResetPasswordEmail = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, msg: "Email không tồn tại" });
+      return res.status(404).json({ success: false, msg: "Email không tồn tại" });
     }
 
     // Email exists, send response confirming this without sending verification code
-    res
-      .status(200)
-      .json({ success: true, msg: "Email tồn tại trong hệ thống" });
+    res.status(200).json({ success: true, msg: "Email tồn tại trong hệ thống" });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -146,12 +136,7 @@ const registerUser = async (req, res, next) => {
 
   // Kiểm tra các trường bắt buộc
   if (!username || !phone || !email || !password) {
-    return next(
-      errorHandler(
-        400,
-        "Tất cả các trường username, phone, email và password đều phải nhập"
-      )
-    );
+    return next(errorHandler(400, "Tất cả các trường username, phone, email và password đều phải nhập"));
   }
 
   // Kiểm tra độ dài username
@@ -170,6 +155,24 @@ const registerUser = async (req, res, next) => {
   }
 
   try {
+    // Kiểm tra nếu staff đã tồn tại dựa trên phone và name
+    const existingStaff = await Staff.findOne({
+      phone: phone,
+      name: username, // Kiểm tra trùng khớp username và phone với nhân viên
+    });
+
+    let role = "customer"; // Vai trò mặc định là customer
+    let storeId = null; // Sẽ lưu storeId nếu đăng ký là staff
+
+    if (existingStaff) {
+      // Nếu trùng với thông tin Staff thì đặt role là "staff"
+      if (existingStaff.user) {
+        return next(errorHandler(400, "Nhân viên này đã đăng ký tài khoản"));
+      }
+      role = "staff"; // Đặt vai trò là staff nếu trùng
+      storeId = existingStaff.store; // Lấy storeId từ nhân viên
+    }
+
     // Kiểm tra xem username, phone hoặc email đã tồn tại chưa
     const existingUser = await User.findOne({
       $or: [{ userName: username }, { phoneNumber: phone }, { email: email }],
@@ -191,12 +194,10 @@ const registerUser = async (req, res, next) => {
     const hashedPassword = bcryptjs.hashSync(password, 10);
 
     // Tạo mã xác thực và thời gian hết hạn
-    const verificationCode = Math.floor(
-      100000 + Math.random() * 900000
-    ).toString(); // Mã xác thực 6 chữ số
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString(); // Mã xác thực 6 chữ số
     const verificationCodeExpiry = Date.now() + 1 * 60 * 1000; // 1 phút
 
-    // Tạo người dùng mới
+    // Tạo người dùng mới với vai trò được xác định
     const newUser = new User({
       userName: username,
       phoneNumber: phone,
@@ -204,10 +205,19 @@ const registerUser = async (req, res, next) => {
       password: hashedPassword,
       verificationCode: verificationCode,
       verificationCodeExpiry: verificationCodeExpiry,
+      roleId: role, // Vai trò (customer hoặc staff)
+      storeIds: storeId ? [storeId] : [], // Nếu là staff thì thêm storeId vào storeIds
     });
 
     // Lưu người dùng vào cơ sở dữ liệu
     await newUser.save();
+
+    // Nếu là nhân viên, liên kết tài khoản mới với nhân viên
+    if (role === "staff") {
+      existingStaff.user = newUser._id; // Liên kết người dùng mới với nhân viên
+      existingStaff.isActive = true; // Đánh dấu nhân viên là active
+      await existingStaff.save();
+    }
 
     // Gửi email xác thực
     const transporter = nodemailer.createTransport({
@@ -230,8 +240,7 @@ const registerUser = async (req, res, next) => {
     // Trả về phản hồi yêu cầu xác thực email
     res.status(201).json({
       success: true,
-      message:
-        "Đăng ký thành công! Vui lòng kiểm tra email của bạn để xác thực.",
+      message: "Đăng ký thành công! Vui lòng kiểm tra email của bạn để xác thực.",
     });
   } catch (error) {
     next(error);
@@ -243,9 +252,7 @@ const loginUser = async (req, res, next) => {
 
   // Kiểm tra xem phone và password có được nhập hay không
   if (!phone || !password) {
-    return next(
-      errorHandler(400, "Vui lòng nhập cả số điện thoại và mật khẩu")
-    );
+    return next(errorHandler(400, "Vui lòng nhập cả số điện thoại và mật khẩu"));
   }
 
   try {
@@ -265,22 +272,31 @@ const loginUser = async (req, res, next) => {
 
     // Kiểm tra trạng thái xác thực
     if (!user.isVerified) {
-      return next(
-        errorHandler(
-          400,
-          "Tài khoản chưa được xác thực. Vui lòng kiểm tra email của bạn để xác thực."
-        )
-      );
+      return next(errorHandler(400, "Tài khoản chưa được xác thực. Vui lòng kiểm tra email của bạn để xác thực."));
+    }
+
+    // Nếu người dùng là "staff", kiểm tra trạng thái "isActive" và lấy thông tin storeId
+    let isActive = true; // Mặc định là true nếu không phải staff
+    let storeId = null; // Lưu storeId nếu là staff
+    if (user.roleId === "staff") {
+      const staff = await Staff.findOne({ user: user._id }).populate("store");
+      if (!staff) {
+        return next(errorHandler(400, "Không tìm thấy thông tin nhân viên."));
+      }
+      isActive = staff.isActive; // Cập nhật isActive từ staff
+
+      // Kiểm tra trạng thái active của nhân viên
+      if (!isActive) {
+        return next(errorHandler(403, "Tài khoản nhân viên chưa được kích hoạt. Vui lòng liên hệ quản trị viên để kích hoạt."));
+      }
+
+      // Lưu storeId từ thông tin của nhân viên
+      storeId = staff.store._id;
     }
 
     // Kiểm tra trạng thái chờ duyệt nếu người dùng là "seller"
     if (user.roleId === "seller" && !user.isApproved) {
-      return next(
-        errorHandler(
-          403,
-          "Tài khoản của bạn đang trong trạng thái chờ duyệt, bạn không được phép đăng nhập. Xin cảm ơn!"
-        )
-      );
+      return next(errorHandler(403, "Tài khoản của bạn đang trong trạng thái chờ duyệt, bạn không được phép đăng nhập. Xin cảm ơn!"));
     }
 
     // Tạo token xác thực
@@ -301,7 +317,7 @@ const loginUser = async (req, res, next) => {
     user.isOnline = true;
     await user.save();
 
-    // Trả về phản hồi đăng nhập thành công
+    // Trả về phản hồi đăng nhập thành công, bao gồm isActive và storeId (nếu là staff)
     res.status(200).json({
       success: true,
       message: "Đăng nhập thành công!",
@@ -312,6 +328,8 @@ const loginUser = async (req, res, next) => {
         phoneNumber: user.phoneNumber,
         email: user.email,
         roleId: user.roleId,
+        isActive, // Trả về trạng thái isActive
+        storeId, // Trả về storeId nếu là nhân viên
         isOnline: user.isOnline, // Trả về trạng thái online
       },
     });
@@ -495,9 +513,7 @@ const resendVerificationCode = async (req, res, next) => {
     }
 
     // Generate a new verification code and expiry time
-    const newVerificationCode = Math.floor(
-      100000 + Math.random() * 900000
-    ).toString();
+    const newVerificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     const newVerificationCodeExpiry = Date.now() + 1 * 60 * 1000; // 1 minute expiry
 
     // Update user's verification code and expiry in the database
@@ -545,9 +561,7 @@ const setOnlineStatus = async (req, res) => {
 
     const user = await User.findById(userId);
     if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, msg: "Người dùng không tồn tại" });
+      return res.status(404).json({ success: false, msg: "Người dùng không tồn tại" });
     }
 
     user.isOnline = isOnline;
@@ -567,17 +581,7 @@ const setOnlineStatus = async (req, res) => {
 };
 
 const registerSeller = async (req, res) => {
-  const {
-    userId,
-    representativeName,
-    cccd,
-    storeName,
-    foodType,
-    businessType,
-    bankAccount,
-    storeAddress,
-    idImage,
-  } = req.body;
+  const { userId, representativeName, cccd, storeName, foodType, businessType, bankAccount, storeAddress, idImage } = req.body;
 
   try {
     // Tìm kiếm người dùng dựa trên userId
@@ -650,9 +654,7 @@ const checkApprovalStatus = async (req, res) => {
     }
 
     if (user.roleId !== "seller" || !user.isApproved) {
-      return res
-        .status(403)
-        .json({ message: "Tài khoản chưa được duyệt làm người bán" });
+      return res.status(403).json({ message: "Tài khoản chưa được duyệt làm người bán" });
     }
 
     res.status(200).json({ message: "Người bán đã được duyệt" });
