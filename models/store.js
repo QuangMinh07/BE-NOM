@@ -44,6 +44,26 @@ const StoreSchema = new mongoose.Schema({
       ],
     },
   ],
+  staffList: [
+    {
+      staffId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Staff", // Liên kết với mô hình Staff
+      },
+      roleId: {
+        type: String,
+        default: "",
+      },
+    },
+  ],
+
+  foods: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Food", // Liên kết với mô hình Food
+    },
+  ],
+
   createdAt: {
     type: Date,
     default: Date.now,

@@ -1,8 +1,8 @@
-const Staff = require("../models/staff"); // Đường dẫn tới modal Staff của bạn
+const Staff = require("../models/staff");
+const Store = require("../models/store");
 
-// Hàm thêm nhân viên mới
 const addStaff = async (req, res) => {
-  const { phone, name, storeId } = req.body; // Thêm storeId vào body của request
+  const { phone, name, storeId } = req.body;
 
   try {
     // Kiểm tra nếu nhân viên với số điện thoại đã tồn tại
@@ -12,21 +12,26 @@ const addStaff = async (req, res) => {
     }
 
     // Kiểm tra xem storeId có hợp lệ không
-    if (!storeId) {
-      return res.status(400).json({ message: "storeId không được bỏ trống." });
+    const store = await Store.findById(storeId);
+    if (!store) {
+      return res.status(400).json({ message: "Cửa hàng không tồn tại." });
     }
 
     // Tạo nhân viên mới
     const newStaff = new Staff({
       phone,
       name,
-      store: storeId, // Lưu storeId vào staff
+      store: storeId,
     });
 
-    // Lưu vào database
-    await newStaff.save();
+    // Lưu nhân viên vào database
+    const savedStaff = await newStaff.save();
 
-    return res.status(200).json({ message: "Thêm nhân viên thành công.", staff: newStaff });
+    // Cập nhật danh sách nhân viên trong cửa hàng (chỉ thêm staffId, roleId ban đầu là null)
+    store.staffList.push({ staffId: savedStaff._id, roleId: null });
+    await store.save();
+
+    return res.status(200).json({ message: "Thêm nhân viên thành công.", staff: savedStaff });
   } catch (error) {
     return res.status(500).json({ message: "Lỗi hệ thống. Vui lòng thử lại sau.", error });
   }

@@ -51,10 +51,16 @@ const addFoodItem = async (req, res) => {
       sellingTime: formattedSellingTime, // Lưu formattedSellingTime
     });
 
-    // Lưu món ăn
+    // Lưu món ăn mới vào MongoDB
     await newFood.save();
 
-    // Trả về phản hồi thành công sau khi lưu thành công
+    // Thêm foodId vào danh sách món ăn của cửa hàng
+    store.foods = store.foods ? [...store.foods, newFood._id] : [newFood._id];
+
+    // Lưu cập nhật cửa hàng sau khi thêm foodId
+    await store.save();
+
+    // Trả về phản hồi thành công sau khi lưu thành công món ăn và cập nhật cửa hàng
     return res.status(200).json({ message: "Thêm món ăn thành công", food: newFood });
   } catch (error) {
     console.error("Lỗi server:", error);

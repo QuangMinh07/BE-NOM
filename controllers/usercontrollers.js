@@ -139,12 +139,11 @@ const registerUser = async (req, res, next) => {
     return next(errorHandler(400, "Tất cả các trường username, phone, email và password đều phải nhập"));
   }
 
-  // Kiểm tra độ dài username
+  // Kiểm tra độ dài username và password
   if (username.length < 7 || username.length > 20) {
     return next(errorHandler(400, "Tên người dùng phải có từ 7 đến 20 ký tự"));
   }
 
-  // Kiểm tra độ dài password
   if (password.length < 8) {
     return next(errorHandler(400, "Mật khẩu phải có ít nhất 8 ký tự"));
   }
@@ -156,21 +155,18 @@ const registerUser = async (req, res, next) => {
 
   try {
     // Kiểm tra nếu staff đã tồn tại dựa trên phone và name
-    const existingStaff = await Staff.findOne({
-      phone: phone,
-      name: username, // Kiểm tra trùng khớp username và phone với nhân viên
-    });
+    const existingStaff = await Staff.findOne({ phone: phone, name: username });
 
     let role = "customer"; // Vai trò mặc định là customer
     let storeId = null; // Sẽ lưu storeId nếu đăng ký là staff
 
     if (existingStaff) {
-      // Nếu trùng với thông tin Staff thì đặt role là "staff"
+      // Nếu là nhân viên, chuyển vai trò thành "staff"
       if (existingStaff.user) {
         return next(errorHandler(400, "Nhân viên này đã đăng ký tài khoản"));
       }
-      role = "staff"; // Đặt vai trò là staff nếu trùng
-      storeId = existingStaff.store; // Lấy storeId từ nhân viên
+      role = "staff"; // Đặt vai trò là staff
+      storeId = existingStaff.store; // Lấy storeId từ thông tin của nhân viên
     }
 
     // Kiểm tra xem username, phone hoặc email đã tồn tại chưa
@@ -212,11 +208,21 @@ const registerUser = async (req, res, next) => {
     // Lưu người dùng vào cơ sở dữ liệu
     await newUser.save();
 
-    // Nếu là nhân viên, liên kết tài khoản mới với nhân viên
+    // Nếu là nhân viên, liên kết tài khoản mới với nhân viên và cập nhật thông tin của nhân viên
     if (role === "staff") {
       existingStaff.user = newUser._id; // Liên kết người dùng mới với nhân viên
       existingStaff.isActive = true; // Đánh dấu nhân viên là active
       await existingStaff.save();
+
+      // Tìm và cập nhật roleId trong store.staffList
+      const store = await Store.findById(storeId);
+      if (store) {
+        const staffIndex = store.staffList.findIndex((staff) => staff.staffId.equals(existingStaff._id));
+        if (staffIndex !== -1) {
+          store.staffList[staffIndex].roleId = "staff"; // Cập nhật roleId của nhân viên
+          await store.save();
+        }
+      }
     }
 
     // Gửi email xác thực
@@ -278,6 +284,7 @@ const loginUser = async (req, res, next) => {
     // Nếu người dùng là "staff", kiểm tra trạng thái "isActive" và lấy thông tin storeId
     let isActive = true; // Mặc định là true nếu không phải staff
     let storeId = null; // Lưu storeId nếu là staff
+    let storeIds = []; // Khai báo mảng storeIds
     if (user.roleId === "staff") {
       const staff = await Staff.findOne({ user: user._id }).populate("store");
       if (!staff) {
@@ -292,11 +299,18 @@ const loginUser = async (req, res, next) => {
 
       // Lưu storeId từ thông tin của nhân viên
       storeId = staff.store._id;
+      storeIds = [storeId]; // Thêm storeId vào mảng storeIds
     }
 
     // Kiểm tra trạng thái chờ duyệt nếu người dùng là "seller"
     if (user.roleId === "seller" && !user.isApproved) {
       return next(errorHandler(403, "Tài khoản của bạn đang trong trạng thái chờ duyệt, bạn không được phép đăng nhập. Xin cảm ơn!"));
+    }
+
+    // Nếu người dùng là seller, lấy storeIds
+    if (user.roleId === "seller") {
+      // Lấy danh sách storeIds từ user
+      storeIds = user.storeIds || []; // Gán giá trị cho storeIds
     }
 
     // Tạo token xác thực
@@ -317,7 +331,7 @@ const loginUser = async (req, res, next) => {
     user.isOnline = true;
     await user.save();
 
-    // Trả về phản hồi đăng nhập thành công, bao gồm isActive và storeId (nếu là staff)
+    // Trả về phản hồi đăng nhập thành công, bao gồm isActive, storeId và storeIds (nếu là staff hoặc seller)
     res.status(200).json({
       success: true,
       message: "Đăng nhập thành công!",
@@ -330,6 +344,7 @@ const loginUser = async (req, res, next) => {
         roleId: user.roleId,
         isActive, // Trả về trạng thái isActive
         storeId, // Trả về storeId nếu là nhân viên
+        storeIds, // Trả về mảng storeIds nếu là staff hoặc seller
         isOnline: user.isOnline, // Trả về trạng thái online
       },
     });
