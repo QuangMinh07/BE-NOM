@@ -10,12 +10,7 @@ const registerAdmin = async (req, res, next) => {
 
   // Kiểm tra các trường bắt buộc
   if (!username || !fullName || !password) {
-    return next(
-      errorHandler(
-        400,
-        "Cả tên người dùng, tên đầy đủ và mật khẩu đều phải nhập"
-      )
-    );
+    return next(errorHandler(400, "Cả tên người dùng, tên đầy đủ và mật khẩu đều phải nhập"));
   }
 
   // Kiểm tra độ dài username
@@ -64,9 +59,7 @@ const loginAdmin = async (req, res, next) => {
 
   // Kiểm tra xem username và password có được nhập hay không
   if (!username || !password) {
-    return next(
-      errorHandler(400, "Vui lòng nhập cả tên người dùng và mật khẩu")
-    );
+    return next(errorHandler(400, "Vui lòng nhập cả tên người dùng và mật khẩu"));
   }
 
   try {
@@ -134,9 +127,7 @@ const getAllUser = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Lọc người dùng theo vai trò nếu có truyền
-    const query = role
-      ? { roleId: role }
-      : { roleId: { $in: ["customer", "seller", "shipper"] } };
+    const query = role ? { roleId: role } : { roleId: { $in: ["customer", "seller", "shipper"] } };
 
     // Nếu có truyền isOnline, thêm điều kiện lọc online hoặc offline
     if (typeof isOnline !== "undefined") {
@@ -150,22 +141,16 @@ const getAllUser = async (req, res) => {
     }
 
     // Lấy danh sách người dùng theo sắp xếp và phân trang, đồng thời populate storeIds
-    const users = await User.find(query)
-      .sort(sortOptions)
-      .skip(skip)
-      .limit(limit)
-      .populate({
-        path: "storeIds",
-        model: "Store",
-        select: "storeName storeAddress bankAccount foodType createdAt", // Lấy các trường từ Store
-      });
+    const users = await User.find(query).sort(sortOptions).skip(skip).limit(limit).populate({
+      path: "storeIds",
+      model: "Store",
+      select: "storeName storeAddress bankAccount foodType createdAt", // Lấy các trường từ Store
+    });
 
     const totalUsers = await User.countDocuments(query);
 
     if (users.length === 0) {
-      return res
-        .status(404)
-        .json({ success: false, msg: "Không tìm thấy người dùng" });
+      return res.status(404).json({ success: false, msg: "Không tìm thấy người dùng" });
     }
 
     return res.status(200).json({
@@ -258,8 +243,7 @@ const rejectSeller = async (req, res) => {
     await user.save();
 
     res.status(200).json({
-      message:
-        "Người dùng đã bị từ chối và quay lại vai trò customer. Cửa hàng đã bị xóa.",
+      message: "Người dùng đã bị từ chối và quay lại vai trò customer. Cửa hàng đã bị xóa.",
       user,
     });
   } catch (error) {
@@ -279,6 +263,85 @@ const getStoreCount = async (req, res) => {
   }
 };
 
+const getAllStores = async (req, res) => {
+  try {
+    const {
+      sortField = "storeName", // Mặc định sắp xếp theo tên cửa hàng
+      sortOrder = "asc", // Mặc định sắp xếp tăng dần
+    } = req.query;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Lấy danh sách cửa hàng và populate thông tin chủ cửa hàng và sản phẩm
+    const stores = await Store.find()
+      .populate("owner", "userName email representativeName isOnline storeCount") // Populate thông tin chủ cửa hàng
+      .populate("foods") // Populate danh sách sản phẩm
+      .skip(skip)
+      .limit(limit);
+
+    if (!stores || stores.length === 0) {
+      return res.status(404).json({
+        success: false,
+        msg: "Không có cửa hàng nào trong hệ thống",
+      });
+    }
+
+    // Đếm số lượng sản phẩm cho mỗi cửa hàng
+    const storesWithProductCount = stores.map((store) => ({
+      ...store._doc,
+      productCount: store.foods ? store.foods.length : 0,
+    }));
+
+    // Thực hiện sắp xếp sau khi đã populate
+    if (sortField && sortOrder) {
+      storesWithProductCount.sort((a, b) => {
+        let fieldA, fieldB;
+
+        if (sortField === "owner.representativeName") {
+          fieldA = a.owner.representativeName.toLowerCase();
+          fieldB = b.owner.representativeName.toLowerCase();
+        } else if (sortField === "owner.storeCount") {
+          fieldA = a.owner.storeCount;
+          fieldB = b.owner.storeCount;
+        } else if (sortField === "productCount") {
+          fieldA = a.productCount;
+          fieldB = b.productCount;
+        } else {
+          fieldA = a[sortField];
+          fieldB = b[sortField];
+        }
+
+        if (sortOrder === "asc") {
+          return fieldA > fieldB ? 1 : fieldA < fieldB ? -1 : 0;
+        } else {
+          return fieldA < fieldB ? 1 : fieldA > fieldB ? -1 : 0;
+        }
+      });
+    }
+
+    // Đếm tổng số cửa hàng
+    const totalStores = await Store.countDocuments();
+
+    res.status(200).json({
+      success: true,
+      msg: "Lấy danh sách cửa hàng thành công",
+      data: storesWithProductCount,
+      total: totalStores,
+      page,
+      totalPages: Math.ceil(totalStores / limit),
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách cửa hàng:", error.message);
+    res.status(500).json({
+      success: false,
+      msg: "Lỗi máy chủ, không thể lấy danh sách cửa hàng",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
@@ -286,4 +349,5 @@ module.exports = {
   approveSeller,
   rejectSeller,
   getStoreCount,
+  getAllStores,
 };
