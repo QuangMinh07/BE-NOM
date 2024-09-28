@@ -116,7 +116,6 @@ const updateStoreById = async (req, res) => {
   }
 };
 
-
 // Hàm tạo cửa hàng mới dựa trên userId
 const createStore = async (req, res) => {
   const { userId, storeName, storeAddress, bankAccount, foodType } = req.body;
@@ -331,6 +330,33 @@ const addSellingTimeToStore = async (req, res) => {
   }
 };
 
+const getAllStores = async (req, res) => {
+  try {
+    // Lấy tất cả cửa hàng từ cơ sở dữ liệu và populate thông tin chủ cửa hàng
+    const stores = await Store.find().populate("owner", "userName email");
+
+    if (!stores || stores.length === 0) {
+      return res.status(404).json({
+        success: false,
+        msg: "Không có cửa hàng nào trong hệ thống",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      msg: "Lấy danh sách cửa hàng thành công",
+      data: stores,
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách cửa hàng:", error.message);
+    res.status(500).json({
+      success: false,
+      msg: "Lỗi máy chủ, không thể lấy danh sách cửa hàng",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getStoreByUser,
   updateStoreById,
@@ -338,4 +364,5 @@ module.exports = {
   deleteStoreById,
   addSellingTimeToStore,
   getStoreById,
+  getAllStores,
 };
