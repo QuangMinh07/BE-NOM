@@ -1,5 +1,6 @@
 const Store = require("../models/store");
 const User = require("../models/user"); // Đảm bảo rằng bạn có mô hình User
+const moment = require("moment-timezone");
 
 // Hàm lấy thông tin cửa hàng theo userId từ query parameters
 const getStoreByUser = async (req, res) => {
@@ -312,6 +313,9 @@ const addSellingTimeToStore = async (req, res) => {
     store.sellingTime = [...store.sellingTime, ...formattedSellingTime];
     store.updatedAt = Date.now();
 
+    // Kiểm tra trạng thái cửa hàng có đang mở hay không
+    store.isOpen = checkStoreOpenStatus(store.sellingTime);
+
     // Lưu thông tin store
     await store.save();
 
@@ -320,6 +324,7 @@ const addSellingTimeToStore = async (req, res) => {
       success: true,
       message: "Thêm thời gian bán hàng thành công",
       store,
+      isOpen: store.isOpen, // Trả về trạng thái mở cửa
     });
   } catch (error) {
     console.error("Lỗi khi thêm thời gian bán hàng:", error);
@@ -327,6 +332,81 @@ const addSellingTimeToStore = async (req, res) => {
       success: false,
       message: "Lỗi máy chủ",
     });
+  }
+};
+
+const checkStoreOpenStatus = (sellingTime) => {
+  // Lấy thời gian hiện tại theo múi giờ Việt Nam (GMT+7)
+  const now = moment().tz("Asia/Ho_Chi_Minh");
+
+  // Lấy tên ngày hiện tại và chuyển đổi từ tiếng Anh sang tiếng Việt
+  const currentDay = now.format("dddd");
+  const dayMapping = {
+    Monday: "Thứ 2",
+    Tuesday: "Thứ 3",
+    Wednesday: "Thứ 4",
+    Thursday: "Thứ 5",
+    Friday: "Thứ 6",
+    Saturday: "Thứ 7",
+    Sunday: "Chủ nhật",
+  };
+  const currentDayInVietnamese = dayMapping[currentDay] || currentDay;
+
+  const currentTime = now.hours() * 60 + now.minutes(); // Tính thời gian hiện tại dưới dạng phút trong ngày
+
+  // Tìm thời gian bán hàng cho ngày hiện tại
+  const daySchedule = sellingTime.find((day) => day.day === currentDayInVietnamese);
+
+  if (!daySchedule || daySchedule.timeSlots.length === 0) {
+    return false; // Nếu không có thời gian bán hàng cho ngày hiện tại, trả về false
+  }
+
+  // Kiểm tra tất cả các khung giờ của ngày hiện tại
+  for (const slot of daySchedule.timeSlots) {
+    const [openHour, openMinute] = slot.open.split(":").map(Number);
+    const [closeHour, closeMinute] = slot.close.split(":").map(Number);
+    const openTime = openHour * 60 + openMinute;
+    const closeTime = closeHour * 60 + closeMinute;
+
+    // Kiểm tra nếu thời gian hiện tại nằm trong khoảng mở bán
+    if (currentTime >= openTime && currentTime <= closeTime) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+// API để kiểm tra và cập nhật trạng thái mở cửa
+const checkStoreOpen = async (req, res) => {
+  try {
+    const { storeId } = req.params; // Lấy storeId từ params
+
+    // Tìm cửa hàng bằng storeId
+    const store = await Store.findById(storeId);
+
+    if (!store) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy cửa hàng" });
+    }
+
+    // Kiểm tra trạng thái mở cửa dựa trên sellingTime
+    const isOpen = checkStoreOpenStatus(store.sellingTime);
+
+    // Cập nhật trường isOpen trong database nếu có thay đổi
+    if (store.isOpen !== isOpen) {
+      store.isOpen = isOpen; // Cập nhật giá trị isOpen
+      store.updatedAt = Date.now(); // Cập nhật thời gian chỉnh sửa
+      await store.save(); // Lưu thay đổi vào cơ sở dữ liệu
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Cửa hàng ${isOpen ? "đang mở" : "đã đóng"}`,
+      isOpen, // Trả về trạng thái của cửa hàng
+    });
+  } catch (error) {
+    console.error("Lỗi khi kiểm tra và cập nhật trạng thái mở cửa:", error.message);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ" });
   }
 };
 
@@ -365,4 +445,5 @@ module.exports = {
   addSellingTimeToStore,
   getStoreById,
   getAllStores,
+  checkStoreOpen,
 };

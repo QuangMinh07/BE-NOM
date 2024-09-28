@@ -1,5 +1,5 @@
 const express = require("express");
-const { getStoreByUser, updateStoreById, createStore, deleteStoreById, addSellingTimeToStore, getStoreById, getAllStores } = require("../controllers/storecontrollers");
+const { getStoreByUser, updateStoreById, createStore, deleteStoreById, addSellingTimeToStore, getStoreById, getAllStores, checkStoreOpen } = require("../controllers/storecontrollers");
 const { authenticateToken } = require("../middlewares/authMiddleware");
 const router = express.Router();
 
@@ -11,5 +11,6 @@ router.post("/create-store/", authenticateToken, createStore);
 router.delete("/delete-store/:storeId", authenticateToken, deleteStoreById);
 router.get("/get-store/:storeId", authenticateToken, getStoreById);
 router.get("/get-all-store/", authenticateToken, getAllStores);
+router.get("/check-store-open/:storeId", authenticateToken, checkStoreOpen);
 
 module.exports = router;

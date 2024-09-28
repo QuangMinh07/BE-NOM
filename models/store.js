@@ -57,6 +57,11 @@ const StoreSchema = new mongoose.Schema({
     },
   ],
 
+  isOpen: {
+    type: Boolean,
+    default: false,
+  },
+
   foods: [
     {
       type: mongoose.Schema.Types.ObjectId,
