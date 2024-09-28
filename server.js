@@ -16,6 +16,7 @@ const foodRoute = require("./routes/foodroute");
 const uploadRoute = require("./routes/uploadroutes");
 const storeRoute = require("./routes/storeroutes");
 const staffRoute = require("./routes/staffroutes");
+const foodgroupRoute = require("./routes/foodgrouproutes");
 
 const app = express();
 // app.use(passport.initialize());
@@ -43,6 +44,7 @@ app.use("/v1/food", foodRoute);
 app.use("/v1/upload", uploadRoute);
 app.use("/v1/store", storeRoute);
 app.use("/v1/staff", staffRoute);
+app.use("/v1/foodgroup", foodgroupRoute);
 
 app.use(bodyParser.json({ limit: "50mb" })); // Để xử lý JSON lớn, bao gồm dữ liệu Base64
 

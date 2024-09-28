@@ -69,6 +69,13 @@ const StoreSchema = new mongoose.Schema({
     },
   ],
 
+  foodGroups: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "FoodGroup", // Liên kết với mô hình FoodGroup
+    },
+  ],
+
   createdAt: {
     type: Date,
     default: Date.now,

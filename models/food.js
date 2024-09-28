@@ -28,9 +28,9 @@ const FoodSchema = new mongoose.Schema({
     default: "",
   },
   foodGroup: {
-    type: String, // Nhóm món (ví dụ: Đồ ăn nhanh, Nước uống, v.v.)
-    trim: true,
-    default: "",
+    type: mongoose.Schema.Types.ObjectId, // Liên kết với nhóm món
+    ref: "FoodGroup",
+    required: true,
   },
   isAvailable: {
     type: Boolean, // Tình trạng còn món hay không
@@ -40,7 +40,6 @@ const FoodSchema = new mongoose.Schema({
     type: Boolean,
     default: false, // Đảm bảo kiểu dữ liệu là Boolean
   },
-
   sellingTime: [
     {
       day: {
@@ -72,5 +71,4 @@ const FoodSchema = new mongoose.Schema({
 });
 
 const Food = mongoose.model("Food", FoodSchema);
-
 module.exports = Food;
