@@ -276,7 +276,7 @@ const getAllStores = async (req, res) => {
 
     // Lấy danh sách cửa hàng và populate thông tin chủ cửa hàng và sản phẩm
     const stores = await Store.find()
-      .populate("owner", "userName email representativeName isOnline storeCount") // Populate thông tin chủ cửa hàng
+      .populate("owner", "userName email representativeName isOnline storeCount businessType storeAddress") // Populate thông tin chủ cửa hàng
       .populate("foods") // Populate danh sách sản phẩm
       .skip(skip)
       .limit(limit);
