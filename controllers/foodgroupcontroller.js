@@ -79,4 +79,35 @@ const getFoodGroups = async (req, res) => {
   }
 };
 
-module.exports = { addFoodGroup, getFoodGroups };
+const getFoodGroupByFoodIdAndStoreId = async (req, res) => {
+  try {
+    const { storeId, foodId } = req.params;
+
+    // Kiểm tra nếu storeId hoặc foodId không tồn tại
+    if (!storeId || !foodId) {
+      return res.status(400).json({ message: "ID cửa hàng và ID món ăn không được để trống." });
+    }
+
+    // Tìm món ăn dựa trên foodId và storeId, đồng thời populate thông tin groupName từ foodGroup
+    const food = await Food.findOne({ _id: foodId, store: storeId }).populate("foodGroup", "groupName");
+
+    // Kiểm tra nếu món ăn không tồn tại
+    if (!food) {
+      return res.status(404).json({ message: "Không tìm thấy món ăn trong cửa hàng này." });
+    }
+
+    // Trả về thông tin nhóm món (groupName) từ foodGroup của món ăn
+    return res.status(200).json({
+      message: "Thông tin nhóm món ăn",
+      groupName: food.foodGroup.groupName, // Trả về tên nhóm món từ foodGroup
+      foodDetails: food, // Trả về chi tiết món ăn nếu cần
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Có lỗi xảy ra.",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = { addFoodGroup, getFoodGroups, getFoodGroupByFoodIdAndStoreId };
