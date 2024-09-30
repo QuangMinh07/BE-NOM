@@ -1,5 +1,6 @@
 const Food = require("../models/food");
 const Store = require("../models/store");
+const FoodGroup = require("../models/foodgroup"); // Import model FoodGroup
 
 const addFoodItem = async (req, res) => {
   const { storeId, foodName, price, description, imageUrl, foodGroup, isAvailable, sellingTime } = req.body;
@@ -60,7 +61,17 @@ const addFoodItem = async (req, res) => {
     // Lưu cập nhật cửa hàng sau khi thêm foodId
     await store.save();
 
-    // Trả về phản hồi thành công sau khi lưu thành công món ăn và cập nhật cửa hàng
+    // Cập nhật danh sách món ăn trong FoodGroup
+    const foodGroupRecord = await FoodGroup.findById(foodGroup);
+    if (foodGroupRecord) {
+      foodGroupRecord.foods.push(newFood._id); // Thêm foodId vào danh sách foods của FoodGroup
+      await foodGroupRecord.save(); // Lưu cập nhật FoodGroup
+    } else {
+      console.log("Không tìm thấy nhóm món với id:", foodGroup);
+      return res.status(404).json({ message: "Nhóm món không tồn tại" });
+    }
+
+    // Trả về phản hồi thành công sau khi lưu thành công món ăn và cập nhật FoodGroup
     return res.status(200).json({ message: "Thêm món ăn thành công", food: newFood });
   } catch (error) {
     console.error("Lỗi server:", error);
@@ -68,6 +79,7 @@ const addFoodItem = async (req, res) => {
     return res.status(500).json({ message: "Lỗi server khi thêm món ăn" });
   }
 };
+
 
 // API lấy thông tin thức ăn dựa trên foodId
 const getFoodById = async (req, res) => {
