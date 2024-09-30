@@ -2,31 +2,35 @@ const Food = require("../models/food");
 const Store = require("../models/store");
 const FoodGroup = require("../models/foodgroup"); // Import model FoodGroup
 
+const cloudinary = require("../config/cloudinaryConfig");
+
+// API để thêm món ăn mới và upload ảnh lên Cloudinary
 const addFoodItem = async (req, res) => {
-  const { storeId, foodName, price, description, imageUrl, foodGroup, isAvailable, sellingTime } = req.body;
+  const { storeId, foodName, price, description, foodGroup, isAvailable, sellingTime } = req.body;
 
   try {
-    console.log("Store ID từ client:", storeId); // Log giá trị storeId
+    console.log("Store ID từ client:", storeId);
 
-    const store = await Store.findById(storeId); // Truy vấn MongoDB
+    const store = await Store.findById(storeId);
 
     if (!store) {
-      console.log("Không tìm thấy cửa hàng với storeId:", storeId); // Log nếu không tìm thấy
       return res.status(404).json({ message: "Cửa hàng không tồn tại" });
     }
 
+    // Nếu có ảnh, upload ảnh lên Cloudinary
+    let imageUrl = null;
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path);
+      imageUrl = result.secure_url; // Lưu URL ảnh vào imageUrl
+    }
+
     // Chuyển đổi sellingTime từ frontend sang định dạng MongoDB
-    const formattedSellingTime = sellingTime.map((dayData) => {
+    const formattedSellingTime = JSON.parse(sellingTime).map((dayData) => {
       if (dayData.is24h) {
         return {
           day: dayData.day,
           is24h: true,
-          timeSlots: [
-            {
-              open: "00:00", // Giờ mở bán là từ nửa đêm
-              close: "23:59", // Giờ đóng bán là đến hết ngày
-            },
-          ], // Thêm timeSlots với thời gian bán nguyên ngày
+          timeSlots: [{ open: "00:00", close: "23:59" }],
         };
       } else {
         return {
@@ -45,11 +49,11 @@ const addFoodItem = async (req, res) => {
       foodName,
       price,
       description,
-      store: storeId, // Liên kết với cửa hàng
-      imageUrl,
+      store: storeId,
+      imageUrl, // Lưu URL ảnh vào món ăn
       foodGroup,
       isAvailable,
-      sellingTime: formattedSellingTime, // Lưu formattedSellingTime
+      sellingTime: formattedSellingTime,
     });
 
     // Lưu món ăn mới vào MongoDB
@@ -57,29 +61,23 @@ const addFoodItem = async (req, res) => {
 
     // Thêm foodId vào danh sách món ăn của cửa hàng
     store.foods = store.foods ? [...store.foods, newFood._id] : [newFood._id];
-
-    // Lưu cập nhật cửa hàng sau khi thêm foodId
     await store.save();
 
     // Cập nhật danh sách món ăn trong FoodGroup
     const foodGroupRecord = await FoodGroup.findById(foodGroup);
     if (foodGroupRecord) {
-      foodGroupRecord.foods.push(newFood._id); // Thêm foodId vào danh sách foods của FoodGroup
-      await foodGroupRecord.save(); // Lưu cập nhật FoodGroup
+      foodGroupRecord.foods.push(newFood._id);
+      await foodGroupRecord.save();
     } else {
-      console.log("Không tìm thấy nhóm món với id:", foodGroup);
       return res.status(404).json({ message: "Nhóm món không tồn tại" });
     }
 
-    // Trả về phản hồi thành công sau khi lưu thành công món ăn và cập nhật FoodGroup
     return res.status(200).json({ message: "Thêm món ăn thành công", food: newFood });
   } catch (error) {
     console.error("Lỗi server:", error);
-    // Trả về phản hồi lỗi nếu có lỗi xảy ra
     return res.status(500).json({ message: "Lỗi server khi thêm món ăn" });
   }
 };
-
 
 // API lấy thông tin thức ăn dựa trên foodId
 const getFoodById = async (req, res) => {

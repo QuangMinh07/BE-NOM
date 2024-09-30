@@ -46,7 +46,7 @@ app.use("/v1/store", storeRoute);
 app.use("/v1/staff", staffRoute);
 app.use("/v1/foodgroup", foodgroupRoute);
 
-app.use(bodyParser.json({ limit: "50mb" })); // Để xử lý JSON lớn, bao gồm dữ liệu Base64
+// app.use(bodyParser.json({ limit: "200mb" })); // Để xử lý JSON lớn, bao gồm dữ liệu Base64
 
 // Xử lý tất cả các request không khớp với các route khác và trả về file index.html cho client-side routing
 app.get("*", (req, res) => {

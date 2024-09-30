@@ -1,84 +1,49 @@
-const express = require("express");
+const express = require('express');
+const multer = require('multer');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('../config/cloudinaryConfig');
+const UserPersonalInfo = require('../models/userPersonal');
 const router = express.Router();
-const cloudinary = require("cloudinary").v2;
-const { CloudinaryStorage } = require("multer-storage-cloudinary");
-const multer = require("multer");
-const path = require("path");
-require("dotenv").config();
 
-// Cấu hình Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-// Cấu hình CloudinaryStorage cho multer
+// Cấu hình CloudinaryStorage
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: "uploads", // Thư mục lưu trên Cloudinary
-    format: async (req, file) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      if (ext === ".jpeg" || ext === ".jpg") return "jpg";
-      if (ext === ".png") return "png";
-      if (ext === ".gif") return "gif";
-      return "jpg"; // Định dạng mặc định là jpg
-    },
-    public_id: (req, file) => {
-      return file.originalname.split('.')[0]; // Lưu với tên file gốc (không có đuôi)
-    },
+    folder: 'profile_pictures', // Thư mục trên Cloudinary
+    allowed_formats: ['jpg', 'png'],
   },
 });
 
-// Hàm kiểm tra định dạng file
-function checkFileType(file, cb) {
-  const filetypes = /jpeg|jpg|png|gif/;
-  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = filetypes.test(file.mimetype);
+const upload = multer({ storage });
 
-  if (extname && mimetype) {
-    cb(null, true);
-  } else {
-    cb("Error: File upload phải là hình ảnh!");
-  }
-}
-
-// Cấu hình multer
-const upload = multer({
-  storage,
-  limits: { fileSize: 5000000 }, // Giới hạn dung lượng file là 5MB
-  fileFilter(req, file, cb) {
-    checkFileType(file, cb);
-  },
-});
-
-// API upload base64 image
-router.post("/uploadBase64", async (req, res) => {
+// API để upload ảnh lên Cloudinary
+router.post('/uploadProfilePicture/:userId', upload.single('image'), async (req, res) => {
   try {
-    const { imageBase64 } = req.body;
-    console.log(imageBase64);
+    const { userId } = req.params;
 
-    // Kiểm tra xem có dữ liệu base64 không
-    if (!imageBase64) {
-      return res.status(405).json({ message: "Thiếu dữ liệu Base64!" });
+    // Tìm UserPersonalInfo theo userId
+    const userPersonalInfo = await UserPersonalInfo.findOne({ userId });
+
+    if (!userPersonalInfo) {
+      return res.status(404).json({ message: 'User không tồn tại' });
     }
 
-    // Kiểm tra định dạng base64
-    if (!imageBase64.startsWith("data:image")) {
-      return res.status(401).json({ message: "Sai định dạng Base64!" });
-    }
+    // Upload ảnh lên Cloudinary trực tiếp
+    const result = await cloudinary.uploader.upload(req.file.path);
 
-    // Upload image lên Cloudinary
-    const uploadResponse = await cloudinary.uploader.upload(imageBase64, {
-      folder: "uploads",
+    // Cập nhật profilePictureURL với đường dẫn ảnh từ Cloudinary
+    userPersonalInfo.profilePictureURL = result.secure_url;
+
+    // Lưu lại thông tin
+    await userPersonalInfo.save();
+
+    res.status(200).json({
+      message: 'Upload thành công!',
+      profilePictureURL: result.secure_url,
     });
-
-    // Trả về URL của ảnh sau khi upload thành công
-    res.json({ url: uploadResponse.secure_url });
-  } catch (err) {
-    console.error("Cloudinary Error:", err);
-    res.status(500).json({ message: "Upload failed", error: err.message });
+  } catch (error) {
+    console.error('Lỗi khi upload ảnh:', error);
+    res.status(500).json({ message: 'Lỗi khi upload ảnh', error });
   }
 });
 

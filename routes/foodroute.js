@@ -1,16 +1,33 @@
 const express = require("express");
+const multer = require("multer");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("../config/cloudinaryConfig");
 const { addFoodItem, getFoodById, getFoodsByStoreId, updateFoodAvailability, deleteFoodItem } = require("../controllers/foodcontrollers");
-// const passport = require('passport');
 const { authenticateToken } = require("../middlewares/authMiddleware");
 
+// Cấu hình CloudinaryStorage để upload ảnh vào thư mục "food_images"
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "food_images", // Thư mục chứa ảnh thức ăn trên Cloudinary
+    allowed_formats: ["jpg", "png"],
+  },
+});
+
+const upload = multer({ storage }); // Khởi tạo multer sau khi cấu hình storage
 const router = express.Router();
 
 // Route cho đăng ký người dùng
-router.post("/add-food", authenticateToken, addFoodItem);
+router.post("/add-food", upload.single("image"), authenticateToken, addFoodItem);
+
 // Route lấy thông tin món ăn dựa trên foodId
 router.get("/get-food/:foodId", authenticateToken, getFoodById);
+
+// Route cập nhật tình trạng món ăn (còn bán hay không)
 router.put("/update-availability/:foodId", authenticateToken, updateFoodAvailability);
-router.delete("/delete/:foodId", deleteFoodItem); // Route xóa món ăn
+
+// Route xóa món ăn dựa trên foodId
+router.delete("/delete/:foodId", authenticateToken, deleteFoodItem);
 
 // Route lấy tất cả món ăn của cửa hàng dựa trên storeId
 router.get("/get-foodstore/:storeId", authenticateToken, getFoodsByStoreId);
