@@ -76,6 +76,8 @@ const StoreSchema = new mongoose.Schema({
     },
   ],
 
+  imageURL: { type: String, default: "" },
+
   createdAt: {
     type: Date,
     default: Date.now,
