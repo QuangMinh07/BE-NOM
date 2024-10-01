@@ -73,7 +73,44 @@ const checkout = async (req, res) => {
   }
 };
 
+const getCart = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Tìm giỏ hàng của người dùng
+    const cart = await Cart.findOne({ user: userId }).populate({
+      path: "items.food", // Lấy thông tin từ mô hình Food
+      select: "foodName price", // Chỉ lấy tên món ăn và giá
+    });
+
+    if (!cart || cart.items.length === 0) {
+      return res.status(404).json({ message: "Giỏ hàng rỗng hoặc không tồn tại" });
+    }
+
+    // Tạo phản hồi chứa thông tin giỏ hàng
+    const cartDetails = cart.items.map((item) => ({
+      foodName: item.food.foodName,
+      price: item.food.price,
+      quantity: item.quantity,
+      totalItemPrice: item.price,
+    }));
+
+    // Gửi phản hồi chứa thông tin giỏ hàng
+    res.status(200).json({
+      message: "Lấy thông tin giỏ hàng thành công!",
+      cart: {
+        totalPrice: cart.totalPrice,
+        items: cartDetails,
+      },
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy thông tin giỏ hàng:", error);
+    res.status(500).json({ message: "Lỗi khi lấy thông tin giỏ hàng", error });
+  }
+};
+
 module.exports = {
   addToCart,
   checkout,
+  getCart,
 };

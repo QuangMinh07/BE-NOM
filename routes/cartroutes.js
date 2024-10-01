@@ -7,5 +7,6 @@ const router = express.Router();
 // Route cho đăng ký người dùng
 router.post("/add-to-cart/:userId", authenticateToken, addToCart);
 router.post("/checkout/:userId", authenticateToken, checkout);
+router.get("/get-cart/:userId", authenticateToken, checkout);
 
 module.exports = router;
