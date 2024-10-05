@@ -36,7 +36,19 @@ const CartSchema = new mongoose.Schema({
   },
   deliveryAddress: {
     type: String, // Địa chỉ giao hàng
-    default: "", 
+    default: "",
+  },
+  receiverName: {
+    type: String, // Tên người nhận
+    required: true,
+  },
+  receiverPhone: {
+    type: String, // Số điện thoại người nhận
+    required: true,
+  },
+  description: {
+    type: String, // Mô tả (nếu có)
+    default: "",
   },
   createdAt: {
     type: Date,
