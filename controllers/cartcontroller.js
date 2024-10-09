@@ -115,6 +115,7 @@ const getCart = async (req, res) => {
     res.status(200).json({
       message: "Lấy thông tin giỏ hàng thành công!",
       cart: {
+        _id: cart._id, // Thêm _id của giỏ hàng
         totalPrice: cart.totalPrice, // Tổng tiền của giỏ hàng
         items: cartDetails, // Danh sách các món ăn
         deliveryAddress: cart.deliveryAddress, // Địa chỉ giao hàng
