@@ -19,6 +19,7 @@ const staffRoute = require("./routes/staffroutes");
 const foodgroupRoute = require("./routes/foodgrouproutes");
 const cartRoute = require("./routes/cartroutes");
 const PaymentTransactionRoute = require("./routes/PaymentTransaction");
+const storeOrderRoute = require("./routes/storeOrderRoutes");
 
 const app = express();
 // app.use(passport.initialize());
@@ -49,6 +50,7 @@ app.use("/v1/staff", staffRoute);
 app.use("/v1/foodgroup", foodgroupRoute);
 app.use("/v1/cart", cartRoute);
 app.use("/v1/PaymentTransaction", PaymentTransactionRoute);
+app.use("/v1/storeOrder", storeOrderRoute);
 
 // app.use(bodyParser.json({ limit: "200mb" })); // Để xử lý JSON lớn, bao gồm dữ liệu Base64
 

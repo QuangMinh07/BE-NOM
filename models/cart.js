@@ -50,10 +50,9 @@ const CartSchema = new mongoose.Schema({
     type: String, // Mô tả (nếu có)
     default: "",
   },
-  paymentMethod: {
-    type: String,
-    enum: ["Momo", "VNPay", "BankCard", "Cash"], // Phương thức thanh toán
-    default: null, // Mặc định là chưa chọn
+  paymentTransaction: {
+    type: mongoose.Schema.Types.ObjectId, // Tham chiếu tới giao dịch thanh toán
+    ref: "PaymentTransaction",
   },
   createdAt: {
     type: Date,

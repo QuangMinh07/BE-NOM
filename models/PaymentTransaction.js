@@ -5,7 +5,7 @@ const { Schema } = mongoose;
 const paymentTransactionSchema = new Schema({
   cart: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Cart", // Tham chiếu tới Cart
+    ref: "Cart", // Tham chiếu tới Cart hoặc đơn hàng
     required: true,
   },
   paymentMethod: {

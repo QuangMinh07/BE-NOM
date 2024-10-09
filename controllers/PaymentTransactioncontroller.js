@@ -8,25 +8,31 @@ const createPaymentTransaction = async (req, res) => {
     const { cartId } = req.params; // Lấy cartId từ params
 
     // Tìm giỏ hàng theo cartId
-    const cart = await Cart.findById(cartId);
+    const cart = await Cart.findById(cartId).populate("paymentTransaction"); // Kiểm tra nếu giỏ hàng đã có giao dịch thanh toán
+
     if (!cart) {
       return res.status(404).json({ error: "Giỏ hàng không tồn tại." });
     }
 
-    // Bước 1: Cập nhật phương thức thanh toán trong Cart
-    cart.paymentMethod = paymentMethod;
-    await cart.save(); // Lưu thông tin phương thức thanh toán vào giỏ hàng
+    // Kiểm tra xem giỏ hàng đã có giao dịch thanh toán chưa
+    if (cart.paymentTransaction) {
+      return res.status(400).json({ error: "Giao dịch thanh toán cho giỏ hàng này đã tồn tại." });
+    }
 
-    // Bước 2: Tạo giao dịch thanh toán mới và lấy phương thức thanh toán từ Cart
+    // Bước 1: Tạo giao dịch thanh toán mới
     const newTransaction = new PaymentTransaction({
-      cart: cartId,
-      paymentMethod: cart.paymentMethod, // Lấy từ Cart để đảm bảo giống nhau
+      cart: cart._id,
+      paymentMethod, // Sử dụng phương thức thanh toán từ yêu cầu
       transactionAmount: transactionAmount || cart.totalPrice, // Sử dụng tổng giá từ Cart nếu không truyền vào
       transactionStatus: "Pending", // Đánh dấu trạng thái thanh toán là "Pending"
     });
 
     // Lưu giao dịch thanh toán vào cơ sở dữ liệu
     const savedTransaction = await newTransaction.save();
+
+    // Bước 2: Cập nhật giỏ hàng để tham chiếu tới giao dịch thanh toán mới
+    cart.paymentTransaction = savedTransaction._id;
+    await cart.save(); // Lưu thông tin giỏ hàng đã liên kết với giao dịch thanh toán
 
     res.status(201).json({
       message: "Giao dịch thanh toán được tạo thành công.",
