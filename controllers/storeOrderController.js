@@ -120,6 +120,51 @@ const getOrderDetails = async (req, res) => {
   }
 };
 
+// Lấy tất cả đơn hàng
+const getAllOrders = async (req, res) => {
+  try {
+    // Lấy tất cả các đơn hàng và populate thông tin người dùng và cửa hàng
+    const orders = await StoreOrder.find()
+      .populate("user", "fullName") // Lấy tên người dùng
+      .populate("store", "storeName") // Lấy tên cửa hàng
+      .populate("foods", "foodName price"); // Lấy tên và giá món ăn
+
+    // Nếu không có đơn hàng
+    if (orders.length === 0) {
+      return res.status(404).json({ message: "Không có đơn hàng nào." });
+    }
+
+    // Chuẩn bị dữ liệu trả về
+    const allOrdersDetails = orders.map((order) => ({
+      orderId: order._id,
+      user: {
+        userId: order.user._id,
+        fullName: order.user.fullName,
+      },
+      store: {
+        storeId: order.store._id,
+        storeName: order.store.storeName,
+      },
+      foods: order.foods.map((food) => ({
+        foodName: food.foodName,
+        price: food.price,
+        quantity: order.foods.find((f) => f._id.equals(food._id)).quantity, // Giả sử bạn lưu quantity
+      })),
+      totalAmount: order.totalAmount,
+      orderDate: order.orderDate,
+      orderStatus: order.orderStatus,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+    }));
+
+    // Trả về tất cả đơn hàng
+    res.status(200).json({ message: "Danh sách đơn hàng", allOrdersDetails });
+  } catch (error) {
+    console.error("Lỗi khi lấy tất cả đơn hàng:", error);
+    res.status(500).json({ error: "Lỗi khi lấy tất cả đơn hàng." });
+  }
+};
+
 // Cập nhật phương thức thanh toán cho đơn hàng
 const updatePaymentMethod = async (req, res) => {
   const { orderId, paymentMethod } = req.body; // Lấy id của đơn hàng và phương thức thanh toán từ request
@@ -143,4 +188,5 @@ module.exports = {
   updatePaymentMethod,
   createOrderFromCart,
   getOrderDetails,
+  getAllOrders,
 };

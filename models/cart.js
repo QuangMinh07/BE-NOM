@@ -40,11 +40,11 @@ const CartSchema = new mongoose.Schema({
   },
   receiverName: {
     type: String, // Tên người nhận
-    required: true,
+    default: "",
   },
   receiverPhone: {
     type: String, // Số điện thoại người nhận
-    required: true,
+    default: "",
   },
   description: {
     type: String, // Mô tả (nếu có)
