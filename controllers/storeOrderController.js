@@ -184,9 +184,52 @@ const updatePaymentMethod = async (req, res) => {
   }
 };
 
+const updateOrderStatus = async (req, res) => {
+  const { orderId } = req.body; // Lấy orderId từ body của request
+  const { storeId } = req.params; // Lấy storeId từ params của URL
+
+  try {
+    // Tìm đơn hàng theo ID
+    const order = await StoreOrder.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ message: "Đơn hàng không tồn tại" });
+    }
+
+    // Kiểm tra xem đơn hàng có thuộc về cửa hàng hiện tại hay không
+    if (!order.store.equals(storeId)) {
+      return res.status(403).json({ message: "Bạn không có quyền cập nhật đơn hàng này" });
+    }
+
+    // Danh sách trạng thái hợp lệ theo thứ tự
+    const statusOrder = ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"];
+
+    // Lấy chỉ mục của trạng thái hiện tại
+    const currentStatusIndex = statusOrder.indexOf(order.orderStatus);
+
+    // Nếu trạng thái hiện tại là cuối cùng hoặc đã bị hủy, không thể cập nhật tiếp
+    if (currentStatusIndex === -1 || currentStatusIndex === statusOrder.length - 1 || order.orderStatus === "Cancelled") {
+      return res.status(400).json({ message: "Không thể cập nhật thêm trạng thái đơn hàng" });
+    }
+
+    // Chuyển sang trạng thái tiếp theo
+    const nextStatus = statusOrder[currentStatusIndex + 1];
+    order.orderStatus = nextStatus;
+    await order.save();
+
+    return res.status(200).json({
+      message: `Trạng thái đơn hàng đã được cập nhật sang ${nextStatus}`,
+      updatedOrder: order,
+    });
+  } catch (error) {
+    console.error("Lỗi khi cập nhật trạng thái đơn hàng:", error);
+    res.status(500).json({ message: "Có lỗi xảy ra", error: error.message });
+  }
+};
+
 module.exports = {
   updatePaymentMethod,
   createOrderFromCart,
   getOrderDetails,
   getAllOrders,
+  updateOrderStatus,
 };
