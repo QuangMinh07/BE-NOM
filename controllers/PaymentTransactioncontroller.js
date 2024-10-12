@@ -5,13 +5,13 @@ const PaymentTransaction = require("../models/PaymentTransaction");
 const createPaymentTransaction = async (req, res) => {
   try {
     const { paymentMethod, transactionAmount } = req.body;
-    const { cartId } = req.params; // Lấy cartId từ params
+    const { cartId, storeId } = req.params; // Lấy cartId và storeId từ params
 
-    // Tìm giỏ hàng theo cartId
-    const cart = await Cart.findById(cartId).populate("paymentTransaction"); // Kiểm tra nếu giỏ hàng đã có giao dịch thanh toán
+    // Tìm giỏ hàng theo cartId và storeId
+    const cart = await Cart.findOne({ _id: cartId, "items.store": storeId }).populate("paymentTransaction");
 
     if (!cart) {
-      return res.status(404).json({ error: "Giỏ hàng không tồn tại." });
+      return res.status(404).json({ error: "Giỏ hàng hoặc cửa hàng không tồn tại." });
     }
 
     // Kiểm tra xem giỏ hàng đã có giao dịch thanh toán chưa
@@ -22,6 +22,7 @@ const createPaymentTransaction = async (req, res) => {
     // Bước 1: Tạo giao dịch thanh toán mới
     const newTransaction = new PaymentTransaction({
       cart: cart._id,
+      store: storeId, // Thêm storeId vào giao dịch thanh toán
       paymentMethod, // Sử dụng phương thức thanh toán từ yêu cầu
       transactionAmount: transactionAmount || cart.totalPrice, // Sử dụng tổng giá từ Cart nếu không truyền vào
       transactionStatus: "Pending", // Đánh dấu trạng thái thanh toán là "Pending"

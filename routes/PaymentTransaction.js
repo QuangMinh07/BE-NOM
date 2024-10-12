@@ -4,6 +4,6 @@ const { createPaymentTransaction } = require("../controllers/PaymentTransactionc
 const { authenticateToken } = require("../middlewares/authMiddleware");
 
 // Route POST thêm nhân viên mới
-router.post("/create-payment/:cartId", authenticateToken, createPaymentTransaction);
+router.post("/create-payment/:cartId/:storeId", authenticateToken, createPaymentTransaction);
 
 module.exports = router;
