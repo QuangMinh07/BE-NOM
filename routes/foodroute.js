@@ -2,7 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const cloudinary = require("../config/cloudinaryConfig");
-const { addFoodItem, getFoodById, getFoodsByStoreId, updateFoodAvailability, deleteFoodItem } = require("../controllers/foodcontrollers");
+const { addFoodItem, getFoodById, getFoodsByStoreId, updateFoodAvailability, deleteFoodItem, getAllFoods } = require("../controllers/foodcontrollers");
 const { authenticateToken } = require("../middlewares/authMiddleware");
 
 // Cấu hình CloudinaryStorage để upload ảnh vào thư mục "food_images"
@@ -31,5 +31,6 @@ router.delete("/delete/:foodId", authenticateToken, deleteFoodItem);
 
 // Route lấy tất cả món ăn của cửa hàng dựa trên storeId
 router.get("/get-foodstore/:storeId", authenticateToken, getFoodsByStoreId);
+router.get("/getAllfood", authenticateToken, getAllFoods);
 
 module.exports = router;

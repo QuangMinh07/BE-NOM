@@ -176,10 +176,63 @@ const deleteFoodItem = async (req, res) => {
   }
 };
 
+const getAllFoods = async (req, res) => {
+  const { page = 1, limit = 10, sortField = "foodName", sortOrder = "asc" } = req.query;
+
+  try {
+    // Tạo đối tượng sắp xếp, bao gồm sắp xếp theo isAvailable
+    const sortOptions = { [sortField]: sortOrder === "asc" ? 1 : -1 };
+
+    // Tìm tất cả món ăn, phân trang và sắp xếp
+    const foods = await Food.find()
+      .populate({
+        path: "store",
+        select: "storeName",
+      })
+      .populate({
+        path: "foodGroup",
+        select: "groupName",
+      })
+      .sort(sortOptions) // Sắp xếp theo sortOptions
+      .skip((page - 1) * limit) // Phân trang
+      .limit(limit); // Giới hạn số lượng kết quả
+
+    if (!foods || foods.length === 0) {
+      return res.status(404).json({ message: "Không tìm thấy món ăn nào" });
+    }
+
+    const totalItems = await Food.countDocuments();
+
+    res.status(200).json({
+      message: "Lấy tất cả món ăn thành công",
+      foods: foods.map((food) => ({
+        _id: food._id,
+        foodName: food.foodName,
+        price: food.price,
+        description: food.description,
+        store: food.store.storeName,
+        imageUrl: food.imageUrl,
+        foodGroup: food.foodGroup.groupName,
+        isAvailable: food.isAvailable,
+        isForSale: food.isForSale,
+        sellingTime: food.sellingTime,
+        createdAt: food.createdAt,
+        updatedAt: food.updatedAt,
+      })),
+      totalPages: Math.ceil(totalItems / limit),
+      currentPage: page,
+    });
+  } catch (error) {
+    console.error("Lỗi server:", error);
+    return res.status(500).json({ message: "Lỗi server khi lấy danh sách món ăn", error });
+  }
+};
+
 module.exports = {
   addFoodItem,
   getFoodById,
   getFoodsByStoreId,
   updateFoodAvailability,
   deleteFoodItem,
+  getAllFoods,
 };
