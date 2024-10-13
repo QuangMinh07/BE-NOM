@@ -1,19 +1,5 @@
 const express = require("express");
-const {
-  verifyEmail,
-  getProfile,
-  loginUser,
-  registerUser,
-  updateUser,
-  sendResetPasswordEmail,
-  resetPassword,
-  changePassword,
-  resendVerificationCode,
-  logoutUser,
-  setOnlineStatus,
-  registerSeller,
-  checkApprovalStatus,
-} = require("../controllers/usercontrollers");
+const { verifyEmail, getProfile, loginUser, registerUser, updateUser, sendResetPasswordEmail, resetPassword, changePassword, resendVerificationCode, logoutUser, setOnlineStatus, registerSeller, checkApprovalStatus, registerShipper } = require("../controllers/usercontrollers");
 // const passport = require('passport');
 const { authenticateToken } = require("../middlewares/authMiddleware");
 
@@ -34,6 +20,7 @@ router.post("/send-reset-password", sendResetPasswordEmail);
 router.post("/reset-password", resetPassword);
 router.put("/changePassword/:userId", authenticateToken, changePassword);
 router.post("/register-seller", authenticateToken, registerSeller);
+router.post("/register-shipper", authenticateToken, registerShipper);
 router.get("/check-approval", authenticateToken, checkApprovalStatus);
 
 // router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));

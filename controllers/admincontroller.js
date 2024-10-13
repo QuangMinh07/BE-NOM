@@ -4,6 +4,8 @@ const { errorHandler } = require("../utils/errorHandler");
 const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 const Store = require("../models/store");
+const ShipperInfo = require("../models/shipper");
+const UserPersonalInfo = require("../models/userPersonal");
 
 const registerAdmin = async (req, res, next) => {
   const { username, fullName, password } = req.body;
@@ -141,11 +143,31 @@ const getAllUser = async (req, res) => {
     }
 
     // Lấy danh sách người dùng theo sắp xếp và phân trang, đồng thời populate storeIds
-    const users = await User.find(query).sort(sortOptions).skip(skip).limit(limit).populate({
+    let users = await User.find(query).sort(sortOptions).skip(skip).limit(limit).populate({
       path: "storeIds",
       model: "Store",
       select: "storeName storeAddress bankAccount foodType createdAt", // Lấy các trường từ Store
     });
+
+    // Nếu roleId là shipper thì populate thêm ShipperInfo
+    users = await Promise.all(
+      users.map(async (user) => {
+        if (user.roleId === "shipper") {
+          const shipperInfo = await ShipperInfo.findOne({ userId: user._id });
+          return {
+            ...user.toObject(),
+            shipperInfo: shipperInfo
+              ? {
+                  vehicleNumber: shipperInfo.vehicleNumber,
+                  temporaryAddress: shipperInfo.temporaryAddress,
+                  bankAccount: shipperInfo.bankAccount,
+                }
+              : null,
+          };
+        }
+        return user;
+      })
+    );
 
     const totalUsers = await User.countDocuments(query);
 
@@ -342,6 +364,103 @@ const getAllStores = async (req, res) => {
   }
 };
 
+const approveShipper = async (req, res) => {
+  const { userId } = req.body;
+
+  try {
+    // Tìm kiếm người dùng dựa trên userId
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "Người dùng không tồn tại" });
+    }
+
+    // Kiểm tra xem người dùng đã đăng ký làm shipper chưa và chưa được duyệt
+    if (user.roleId !== "shipper" || user.isApproved) {
+      return res.status(400).json({
+        message: "Người dùng không trong trạng thái chờ duyệt làm shipper",
+      });
+    }
+
+    // Duyệt người dùng thành shipper
+    user.isApproved = true;
+
+    // Lưu thông tin người dùng
+    await user.save();
+
+    res.status(200).json({
+      message: "Shipper đã được duyệt thành công",
+      user,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
+const rejectShipper = async (req, res) => {
+  const { userId } = req.body; // Chỉ cần userId từ request body
+
+  try {
+    // Tìm kiếm người dùng dựa trên userId
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "Người dùng không tồn tại" });
+    }
+
+    // Kiểm tra xem người dùng có phải shipper đang chờ duyệt hay không
+    if (user.roleId !== "shipper" || user.isApproved) {
+      return res.status(400).json({
+        message: "Người dùng không trong trạng thái chờ duyệt làm shipper",
+      });
+    }
+
+    // Tìm và xóa tất cả thông tin liên quan đến shipper từ bảng ShipperInfo
+    await ShipperInfo.deleteMany({ userId: user._id });
+
+    // Xóa các trường không cần thiết trong UserPersonalInfo nhưng giữ lại userId và profilePictureURL
+    const personalInfo = await UserPersonalInfo.findOne({ userId: user._id });
+    if (personalInfo) {
+      personalInfo.dateOfBirth = ""; // Xóa ngày sinh
+      personalInfo.gender = ""; // Xóa giới tính
+      personalInfo.city = ""; // Xóa thành phố
+      personalInfo.state = ""; // Xóa bang
+      personalInfo.postalCode = ""; // Xóa mã bưu điện
+      personalInfo.country = ""; // Xóa quốc gia
+
+      // Chỉ giữ lại userId và profilePictureURL
+      await personalInfo.save();
+    }
+
+    // Thay đổi vai trò về lại "customer" và trả về giá trị trống cho các thông tin đã đăng ký
+    user.roleId = "customer";
+    user.isApproved = false;
+    user.fullName = ""; // Trả về tên đầy đủ thành chuỗi rỗng
+    user.cccd = ""; // Trả về CCCD/CMND thành chuỗi rỗng
+    user.address = ""; // Trả về địa chỉ thành chuỗi rỗng
+
+    // Lưu thay đổi người dùng
+    await user.save();
+
+    res.status(200).json({
+      message: "Người dùng đã bị từ chối và quay lại vai trò customer. Thông tin shipper đã được xóa.",
+      user: {
+        id: user._id,
+        roleId: user.roleId,
+        fullName: user.fullName,
+        cccd: user.cccd,
+        address: user.address,
+        isApproved: user.isApproved,
+      },
+      personalInfo, // Trả về thông tin cá nhân đã sửa đổi
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Lỗi server" });
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
@@ -350,4 +469,6 @@ module.exports = {
   rejectSeller,
   getStoreCount,
   getAllStores,
+  approveShipper,
+  rejectShipper,
 };

@@ -6,7 +6,8 @@ const nodemailer = require("nodemailer");
 const argon2 = require("argon2");
 const Store = require("../models/store");
 const Staff = require("../models/staff"); // Đường dẫn tới modal Staff của bạn
-
+const UserPersonalInfo = require("../models/userPersonal"); // Đường dẫn tới modal Staff của bạn
+const ShipperInfo = require("../models/shipper");
 // const firebase = require("../firebase");
 
 const changePassword = async (req, res) => {
@@ -207,6 +208,17 @@ const registerUser = async (req, res, next) => {
 
     // Lưu người dùng vào cơ sở dữ liệu
     await newUser.save();
+
+    // Tạo thông tin cá nhân cho người dùng với ảnh ảo mặc định
+    const defaultProfilePictureURL = "https://example.com/random-image.jpg"; // URL ảnh ảo
+
+    const newUserPersonalInfo = new UserPersonalInfo({
+      userId: newUser._id,
+      profilePictureURL: defaultProfilePictureURL, // Gán ảnh ảo vào profilePictureURL
+    });
+
+    // Lưu thông tin cá nhân vào cơ sở dữ liệu
+    await newUserPersonalInfo.save();
 
     // Nếu là nhân viên, liên kết tài khoản mới với nhân viên và cập nhật thông tin của nhân viên
     if (role === "staff") {
@@ -679,6 +691,87 @@ const checkApprovalStatus = async (req, res) => {
   }
 };
 
+const registerShipper = async (req, res) => {
+  try {
+    const { userId, fullName, cccd, address, dateOfBirth, temporaryAddress, bankAccount, vehicleNumber, profilePictureURL } = req.body;
+
+    // Tìm kiếm người dùng dựa trên userId
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "Người dùng không tồn tại" });
+    }
+
+    // Kiểm tra xem tài khoản này đã là shipper hay chưa
+    if (user.roleId === "shipper") {
+      return res.status(400).json({ message: "Tài khoản đã là shipper" });
+    }
+
+    // Tạo hoặc cập nhật thông tin cá nhân cho shipper
+    let personalInfo = await UserPersonalInfo.findOne({ userId });
+    if (!personalInfo) {
+      personalInfo = new UserPersonalInfo({
+        userId: user._id,
+        dateOfBirth: dateOfBirth || "", // Ngày sinh của shipper
+        profilePictureURL: profilePictureURL || "https://example.com/default-profile-picture.jpg", // URL ảnh đại diện (nếu không có thì sử dụng ảnh mặc định)
+      });
+    } else {
+      // Cập nhật thông tin cá nhân nếu đã tồn tại
+      personalInfo.dateOfBirth = dateOfBirth || personalInfo.dateOfBirth;
+      personalInfo.profilePictureURL = profilePictureURL || personalInfo.profilePictureURL;
+    }
+
+    // Lưu thông tin cá nhân
+    await personalInfo.save();
+
+    // Tạo hoặc cập nhật thông tin ShipperInfo
+    let shipperInfo = await ShipperInfo.findOne({ userId: user._id });
+    if (!shipperInfo) {
+      shipperInfo = new ShipperInfo({
+        userId: user._id,
+        personalInfoId: personalInfo._id,
+        temporaryAddress: temporaryAddress || "", // Địa chỉ tạm trú
+        bankAccount: bankAccount || "", // Số tài khoản ngân hàng
+        vehicleNumber: vehicleNumber || "", // Mã số xe của shipper
+      });
+    } else {
+      // Cập nhật thông tin nếu ShipperInfo đã tồn tại
+      shipperInfo.temporaryAddress = temporaryAddress || shipperInfo.temporaryAddress;
+      shipperInfo.bankAccount = bankAccount || shipperInfo.bankAccount;
+      shipperInfo.vehicleNumber = vehicleNumber || shipperInfo.vehicleNumber;
+    }
+
+    // Lưu thông tin shipper
+    await shipperInfo.save();
+
+    // Cập nhật vai trò người dùng thành shipper và đặt trạng thái chờ duyệt
+    user.roleId = "shipper";
+    user.fullName = fullName || user.fullName; // Cập nhật tên đầy đủ nếu cần
+    user.cccd = cccd || user.cccd; // Cập nhật CCCD/CMND nếu cần
+    user.address = address || user.address; // Cập nhật địa chỉ từ user
+    user.isApproved = false; // Đặt trạng thái chờ duyệt
+    await user.save();
+
+    // Trả về phản hồi thành công và thông báo rằng tài khoản đang chờ duyệt
+    res.status(200).json({
+      message: "Đăng ký shipper thành công, chờ admin duyệt",
+      user: {
+        id: user._id,
+        roleId: user.roleId,
+        fullName: user.fullName,
+        cccd: user.cccd,
+        address: user.address, // Địa chỉ từ user
+        isApproved: user.isApproved, // Trạng thái chờ duyệt
+      },
+      personalInfo,
+      shipperInfo,
+    });
+  } catch (error) {
+    console.error("Lỗi khi đăng ký shipper:", error);
+    res.status(500).json({ message: "Lỗi server khi đăng ký shipper", error });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -695,4 +788,5 @@ module.exports = {
   setOnlineStatus,
   registerSeller,
   checkApprovalStatus,
+  registerShipper,
 };

@@ -13,7 +13,6 @@ const UserPersonalInfoSchema = new mongoose.Schema(
     },
     gender: {
       type: String,
-      enum: ["Nam", "Nữ", "Khác"],
       default: "",
     },
     city: {

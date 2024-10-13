@@ -1,5 +1,5 @@
 const express = require("express");
-const { registerAdmin, loginAdmin, getAllUser, approveSeller, rejectSeller, getStoreCount, getAllStores } = require("../controllers/admincontroller");
+const { registerAdmin, loginAdmin, getAllUser, approveSeller, rejectSeller, getStoreCount, getAllStores, approveShipper, rejectShipper } = require("../controllers/admincontroller");
 const { authenticateToken } = require("../middlewares/authMiddleware"); // Import the middleware
 const router = express.Router();
 
@@ -13,5 +13,7 @@ router.post("/approve-seller", authenticateToken, approveSeller);
 router.post("/reject-seller", authenticateToken, rejectSeller);
 router.post("/getStoreCount", authenticateToken, getStoreCount);
 router.get("/get-all-store/", authenticateToken, getAllStores);
+router.post("/approve-shipper", authenticateToken, approveShipper);
+router.post("/reject-shipper", authenticateToken, rejectShipper);
 
 module.exports = router;
