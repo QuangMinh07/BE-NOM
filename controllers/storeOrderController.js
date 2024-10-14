@@ -200,8 +200,8 @@ const updateOrderStatus = async (req, res) => {
       return res.status(403).json({ message: "Bạn không có quyền cập nhật đơn hàng này" });
     }
 
-    // Danh sách trạng thái hợp lệ theo thứ tự
-    const statusOrder = ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"];
+    // Danh sách trạng thái hợp lệ theo thứ tự, bao gồm trạng thái mới
+    const statusOrder = ["Pending", "Processing", "Shipped", "Completed", "Received", "Delivered", "Cancelled"];
 
     // Lấy chỉ mục của trạng thái hiện tại
     const currentStatusIndex = statusOrder.indexOf(order.orderStatus);

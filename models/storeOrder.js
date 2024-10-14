@@ -38,9 +38,18 @@ const storeOrderSchema = new Schema({
   },
   orderStatus: {
     type: String,
-    enum: ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"],
+    enum: [
+      "Pending", // Đơn hàng đang chờ xử lý
+      "Processing", // Đơn hàng đang xử lý
+      "Shipped", // Shipper đã chấp nhận giao đơn hàng (đã sửa)
+      "Completed", // Đang hoàn thành đơn hàng
+      "Received", // Shipper đã nhận hàng
+      "Delivered", // Đơn hàng đã giao thành công
+      "Cancelled", // Đơn hàng đã bị hủy
+    ],
     default: "Pending",
   },
+
   paymentStatus: {
     type: String,
     enum: ["Pending", "Paid", "Failed"],
