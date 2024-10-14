@@ -187,6 +187,7 @@ const updatePaymentMethod = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   const { orderId, shipperInfoId } = req.body; // Lấy orderId và shipperInfoId từ body của request
   const { storeId } = req.params; // Lấy storeId từ params của URL
+  const { userId } = req; // Lấy userId từ middleware xác thực, giả sử bạn đã có xác thực người dùng
 
   try {
     // Tìm đơn hàng theo ID
@@ -215,19 +216,22 @@ const updateOrderStatus = async (req, res) => {
     const nextStatus = statusOrder[currentStatusIndex + 1];
     order.orderStatus = nextStatus;
 
-    // Nếu tồn tại shipperInfoId, tìm shipper liên kết với đơn hàng
-    const shipperInfo = await ShipperInfo.findById(shipperInfoId);
-    if (!shipperInfo) {
-      return res.status(404).json({ message: "Không tìm thấy thông tin shipper" });
+    // Kiểm tra vai trò người dùng để xác định xem có phải shipper không
+    const user = await User.findById(userId);
+    if (user.roleId === "shipper") {
+      // Nếu người dùng là shipper, cập nhật shipperId vào đơn hàng
+      const shipperInfo = await ShipperInfo.findById(shipperInfoId);
+      if (!shipperInfo) {
+        return res.status(404).json({ message: "Không tìm thấy thông tin shipper" });
+      }
+      order.shipper = shipperInfo._id; // Cập nhật shipperId vào đơn hàng
     }
 
-    // Cập nhật đơn hàng với thông tin shipperId từ mô hình ShipperInfo
-    order.shipper = shipperInfo._id; // Cập nhật shipperId từ shipperInfo
-
+    // Lưu đơn hàng đã cập nhật
     await order.save();
 
     return res.status(200).json({
-      message: `Trạng thái đơn hàng đã được cập nhật sang ${nextStatus} và thêm shipper vào đơn hàng`,
+      message: `Trạng thái đơn hàng đã được cập nhật sang ${nextStatus} ${user.roleId === "shipper" ? "và thêm shipper vào đơn hàng" : ""}`,
       updatedOrder: order,
     });
   } catch (error) {
