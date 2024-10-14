@@ -23,6 +23,19 @@ const storeOrderSchema = new Schema({
     ref: "ShipperInfo", // Tham chiếu đến mô hình ShipperInfo
     required: false, // Ban đầu có thể không có shipper cho đơn hàng
   },
+  cartSnapshot: {
+    totalPrice: Number,
+    deliveryAddress: String,
+    receiverName: String,
+    receiverPhone: String,
+    items: [
+      {
+        foodName: String,
+        quantity: Number,
+        price: Number,
+      },
+    ],
+  },
   orderDate: {
     type: Date,
     default: Date.now,

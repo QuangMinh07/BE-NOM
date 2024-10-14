@@ -23,11 +23,25 @@ const createOrderFromCart = async (req, res) => {
       price: item.price,
     }));
 
-    // Tạo đơn hàng mới từ thông tin giỏ hàng
+    // Tạo snapshot của giỏ hàng trước khi xóa
+    const cartSnapshot = {
+      totalPrice: cart.totalPrice,
+      deliveryAddress: cart.deliveryAddress,
+      receiverName: cart.receiverName,
+      receiverPhone: cart.receiverPhone,
+      items: cart.items.map((item) => ({
+        foodName: item.food.foodName,
+        quantity: item.quantity,
+        price: item.price,
+      })),
+    };
+
+    // Tạo đơn hàng mới từ thông tin giỏ hàng, bao gồm snapshot
     const newOrder = new StoreOrder({
       store: cart.items[0].store, // Giả sử tất cả món thuộc cùng một cửa hàng
       user: cart.user,
-      cart: cart._id, // Thêm tham chiếu tới giỏ hàng
+      cart: cart._id,
+      cartSnapshot, // Lưu snapshot của giỏ hàng
       foods: cart.items.map((item) => item.food._id), // Tham chiếu đến các món ăn
       totalAmount: cart.totalPrice, // Tổng số tiền từ giỏ hàng
       deliveryAddress: cart.deliveryAddress, // Địa chỉ lấy từ giỏ hàng
@@ -72,6 +86,7 @@ const createOrderFromCart = async (req, res) => {
         orderStatus: populatedOrder.orderStatus,
         paymentStatus: populatedOrder.paymentStatus,
         paymentMethod: populatedOrder.paymentMethod, // Phương thức thanh toán
+        cartSnapshot: populatedOrder.cartSnapshot, // Thêm thông tin snapshot của giỏ hàng
       },
     });
   } catch (error) {
@@ -84,29 +99,79 @@ const getOrderDetails = async (req, res) => {
   try {
     const { orderId } = req.params;
 
-    // Tìm đơn hàng theo orderId và populate thông tin người dùng và cửa hàng
-    const order = await StoreOrder.findById(orderId).populate("user", "fullName").populate("store", "storeName").populate("foods", "foodName price"); // Lấy tên món ăn và giá
+    // Tìm đơn hàng theo orderId và populate thông tin người dùng, cửa hàng, shipper và món ăn
+    const order = await StoreOrder.findById(orderId)
+      .populate("user", "fullName")
+      .populate("store", "storeName storeAddress")
+      .populate({
+        path: "foods",
+        select: "foodName price",
+      })
+      .populate({
+        path: "shipper",
+        populate: {
+          path: "userId",
+          select: "fullName",
+        },
+        select: "temporaryAddress vehicleNumber bankAccount",
+      });
 
     if (!order) {
       return res.status(404).json({ message: "Đơn hàng không tồn tại." });
     }
 
+    // Lấy thông tin snapshot giỏ hàng (cartSnapshot) từ đơn hàng
+    const cartSnapshot = order.cartSnapshot ? order.cartSnapshot : null;
+
+    // Kiểm tra xem user, store và shipper có tồn tại không
+    const user = order.user ? order.user : null;
+    const store = order.store ? order.store : null;
+    const shipper = order.shipper ? order.shipper : null;
+
     // Chuẩn bị dữ liệu trả về
     const orderDetails = {
       orderId: order._id,
-      user: {
-        userId: order.user._id,
-        fullName: order.user.fullName,
-      },
-      store: {
-        storeId: order.store._id,
-        storeName: order.store.storeName,
-      },
+      store: store
+        ? {
+            storeId: store._id,
+            storeName: store.storeName,
+            storeAddress: store.storeAddress,
+          }
+        : null,
+      user: user
+        ? {
+            userId: user._id,
+            fullName: user.fullName,
+          }
+        : null,
       foods: order.foods.map((food) => ({
+        foodId: food._id,
         foodName: food.foodName,
         price: food.price,
         quantity: order.foods.find((f) => f._id.equals(food._id)).quantity, // Giả sử bạn lưu quantity
       })),
+      cartSnapshot: cartSnapshot
+        ? {
+            totalPrice: cartSnapshot.totalPrice,
+            deliveryAddress: cartSnapshot.deliveryAddress,
+            receiverName: cartSnapshot.receiverName,
+            receiverPhone: cartSnapshot.receiverPhone,
+            items: cartSnapshot.items.map((item) => ({
+              foodName: item.foodName,
+              quantity: item.quantity,
+              price: item.price,
+            })),
+          }
+        : null,
+      shipper: shipper
+        ? {
+            shipperId: shipper._id,
+            fullName: shipper.userId.fullName,
+            temporaryAddress: shipper.temporaryAddress,
+            vehicleNumber: shipper.vehicleNumber,
+            bankAccount: shipper.bankAccount,
+          }
+        : null,
       totalAmount: order.totalAmount,
       orderDate: order.orderDate,
       orderStatus: order.orderStatus,
