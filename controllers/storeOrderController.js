@@ -1,5 +1,5 @@
 const StoreOrder = require("../models/storeOrder");
-
+const ShipperInfo = require("../models/shipper");
 const Cart = require("../models/cart");
 
 const createOrderFromCart = async (req, res) => {
@@ -185,7 +185,7 @@ const updatePaymentMethod = async (req, res) => {
 };
 
 const updateOrderStatus = async (req, res) => {
-  const { orderId } = req.body; // Lấy orderId từ body của request
+  const { orderId, shipperInfoId } = req.body; // Lấy orderId và shipperInfoId từ body của request
   const { storeId } = req.params; // Lấy storeId từ params của URL
 
   try {
@@ -214,10 +214,20 @@ const updateOrderStatus = async (req, res) => {
     // Chuyển sang trạng thái tiếp theo
     const nextStatus = statusOrder[currentStatusIndex + 1];
     order.orderStatus = nextStatus;
+
+    // Nếu tồn tại shipperInfoId, tìm shipper liên kết với đơn hàng
+    const shipperInfo = await ShipperInfo.findById(shipperInfoId);
+    if (!shipperInfo) {
+      return res.status(404).json({ message: "Không tìm thấy thông tin shipper" });
+    }
+
+    // Cập nhật đơn hàng với thông tin shipperId từ mô hình ShipperInfo
+    order.shipper = shipperInfo._id; // Cập nhật shipperId từ shipperInfo
+
     await order.save();
 
     return res.status(200).json({
-      message: `Trạng thái đơn hàng đã được cập nhật sang ${nextStatus}`,
+      message: `Trạng thái đơn hàng đã được cập nhật sang ${nextStatus} và thêm shipper vào đơn hàng`,
       updatedOrder: order,
     });
   } catch (error) {

@@ -18,6 +18,11 @@ const storeOrderSchema = new Schema({
     ref: "Cart", // Tham chiếu đến giỏ hàng
     required: true,
   },
+  shipper: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "ShipperInfo", // Tham chiếu đến mô hình ShipperInfo
+    required: true, // Ban đầu có thể không có shipper cho đơn hàng
+  },
   orderDate: {
     type: Date,
     default: Date.now,
