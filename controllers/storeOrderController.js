@@ -186,9 +186,8 @@ const updatePaymentMethod = async (req, res) => {
 };
 
 const updateOrderStatus = async (req, res) => {
-  const { orderId, shipperInfoId } = req.body; // Lấy orderId và shipperInfoId từ body của request
-  const { storeId } = req.params; // Lấy storeId từ params của URL
-  const { userId } = req; // Lấy userId từ middleware xác thực, giả sử bạn đã có xác thực người dùng
+  const { orderId } = req.body; // Lấy orderId từ body của request
+  const { storeId, userId } = req.params; // Lấy storeId và userId từ params của URL
 
   try {
     // Tìm đơn hàng theo ID
@@ -202,7 +201,7 @@ const updateOrderStatus = async (req, res) => {
       return res.status(403).json({ message: "Bạn không có quyền cập nhật đơn hàng này" });
     }
 
-    // Danh sách trạng thái hợp lệ theo thứ tự, bao gồm trạng thái mới
+    // Danh sách trạng thái hợp lệ theo thứ tự
     const statusOrder = ["Pending", "Processing", "Shipped", "Completed", "Received", "Delivered", "Cancelled"];
 
     // Lấy chỉ mục của trạng thái hiện tại
@@ -219,9 +218,13 @@ const updateOrderStatus = async (req, res) => {
 
     // Kiểm tra vai trò người dùng để xác định xem có phải shipper không
     const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "Người dùng không tồn tại" });
+    }
+
     if (user.roleId === "shipper") {
-      // Nếu người dùng là shipper, cập nhật shipperId vào đơn hàng
-      const shipperInfo = await ShipperInfo.findById(shipperInfoId);
+      // Nếu người dùng là shipper, lấy thông tin shipper liên kết với người dùng
+      const shipperInfo = await ShipperInfo.findOne({ userId: user._id });
       if (!shipperInfo) {
         return res.status(404).json({ message: "Không tìm thấy thông tin shipper" });
       }

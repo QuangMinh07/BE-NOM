@@ -8,7 +8,7 @@ router.post("/update-payment-method", authenticateToken, updatePaymentMethod);
 router.post("/create/:cartId", authenticateToken, createOrderFromCart);
 router.get("/details/:orderId", authenticateToken, getOrderDetails);
 router.get("/get-all-orders", authenticateToken, getAllOrders);
-router.put("/update-status/:storeId", authenticateToken, updateOrderStatus);
+router.put("/update-status/:storeId/:userId", authenticateToken, updateOrderStatus);
 router.get("/get-orders/:storeId", authenticateToken, getOrdersByStore);
 
 module.exports = router;
