@@ -21,7 +21,7 @@ const storeOrderSchema = new Schema({
   shipper: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "ShipperInfo", // Tham chiếu đến mô hình ShipperInfo
-    required: true, // Ban đầu có thể không có shipper cho đơn hàng
+    required: false, // Ban đầu có thể không có shipper cho đơn hàng
   },
   orderDate: {
     type: Date,
