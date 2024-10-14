@@ -236,10 +236,57 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
+const getOrdersByStore = async (req, res) => {
+  const { storeId } = req.params; // Lấy storeId từ params
+
+  try {
+    // Tìm tất cả các đơn hàng thuộc về cửa hàng có storeId
+    const orders = await StoreOrder.find({ store: storeId })
+      .populate("user", "fullName") // Lấy tên người dùng
+      .populate("store", "storeName") // Lấy tên cửa hàng
+      .populate("foods", "foodName price"); // Lấy tên và giá món ăn
+
+    // Nếu không có đơn hàng nào cho cửa hàng
+    if (orders.length === 0) {
+      return res.status(404).json({ message: "Không có đơn hàng nào cho cửa hàng này." });
+    }
+
+    // Chuẩn bị dữ liệu trả về
+    const storeOrdersDetails = orders.map((order) => ({
+      orderId: order._id,
+      user: {
+        userId: order.user._id,
+        fullName: order.user.fullName,
+      },
+      store: {
+        storeId: order.store._id,
+        storeName: order.store.storeName,
+      },
+      foods: order.foods.map((food) => ({
+        foodName: food.foodName,
+        price: food.price,
+        quantity: order.foods.find((f) => f._id.equals(food._id)).quantity, // Giả sử bạn lưu quantity
+      })),
+      totalAmount: order.totalAmount,
+      orderDate: order.orderDate,
+      orderStatus: order.orderStatus,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+    }));
+
+    // Trả về danh sách đơn hàng của cửa hàng
+    res.status(200).json({ message: "Danh sách đơn hàng của cửa hàng", storeOrdersDetails });
+  } catch (error) {
+    console.error("Lỗi khi lấy đơn hàng theo cửa hàng:", error);
+    res.status(500).json({ error: "Lỗi khi lấy đơn hàng theo cửa hàng." });
+  }
+};
+
 module.exports = {
   updatePaymentMethod,
   createOrderFromCart,
   getOrderDetails,
   getAllOrders,
   updateOrderStatus,
+  getOrdersByStore,
 };
