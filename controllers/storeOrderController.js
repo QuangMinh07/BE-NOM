@@ -1,6 +1,7 @@
 const StoreOrder = require("../models/storeOrder");
 const ShipperInfo = require("../models/shipper");
 const Cart = require("../models/cart");
+const User = require("../models/user");
 
 const createOrderFromCart = async (req, res) => {
   try {
