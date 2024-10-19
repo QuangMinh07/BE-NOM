@@ -455,15 +455,20 @@ const getProfile = async (req, res, next) => {
       return next(errorHandler(404, "Người dùng không tồn tại"));
     }
 
-    // Trả về thông tin người dùng
+    // Tìm thông tin shipper liên quan nếu có
+    const shipperInfo = await ShipperInfo.findOne({ userId: req.user.id });
+
+    // Trả về thông tin người dùng và thông tin shipper (nếu có)
     res.status(200).json({
       success: true,
       user,
+      shipperInfo: shipperInfo || null, // Nếu không có thông tin shipper, trả về null
     });
   } catch (error) {
     next(error);
   }
 };
+
 
 const updateUser = async (req, res, next) => {
   const { phone, email, fullName, address } = req.body;
