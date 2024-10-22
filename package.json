@@ -19,9 +19,11 @@
     "cors": "^2.8.5",
     "data-uri-to-buffer": "^6.0.2",
     "dotenv": "^16.4.5",
+    "expo-server-sdk": "^3.11.0",
     "express": "^4.19.2",
     "express-async-handler": "^1.2.0",
     "firebase": "^10.13.1",
+    "firebase-admin": "^12.6.0",
     "js-cookie": "^3.0.5",
     "jsonwebtoken": "^9.0.2",
     "moment-timezone": "^0.5.45",
@@ -33,7 +35,8 @@
     "passport": "^0.7.0",
     "passport-facebook": "^3.0.0",
     "passport-google-oauth20": "^2.0.0",
-    "sharp": "^0.33.5"
+    "sharp": "^0.33.5",
+    "socket.io": "^4.8.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"

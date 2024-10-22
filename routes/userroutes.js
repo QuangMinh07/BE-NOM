@@ -15,7 +15,7 @@ router.put("/setOnlineStatus", authenticateToken, setOnlineStatus);
 
 // Route để lấy thông tin profile (yêu cầu xác thực token)
 router.get("/profile", authenticateToken, getProfile);
-router.put("/update", authenticateToken, updateUser); // Route cho cập nhật thông tin người dùng (yêu cầu xác thực token)
+router.put("/update", authenticateToken, updateUser); 
 router.post("/send-reset-password", sendResetPasswordEmail);
 router.post("/reset-password", resetPassword);
 router.put("/changePassword/:userId", authenticateToken, changePassword);
