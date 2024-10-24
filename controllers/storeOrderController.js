@@ -2,6 +2,7 @@ const StoreOrder = require("../models/storeOrder");
 const ShipperInfo = require("../models/shipper");
 const Cart = require("../models/cart");
 const User = require("../models/user");
+const Chat = require("../models/chat");
 
 const createOrderFromCart = async (req, res) => {
   try {
@@ -298,6 +299,13 @@ const updateOrderStatus = async (req, res) => {
 
     // Lưu đơn hàng đã cập nhật
     await order.save();
+
+    // Kiểm tra trạng thái nếu là "Delivered" thì xóa phòng chat
+    if (nextStatus === "Delivered") {
+      // Xóa phòng chat dựa trên roomId (orderId của đơn hàng)
+      await Chat.deleteOne({ roomId: orderId });
+      console.log(`Phòng chat với roomId ${orderId} đã bị xóa.`);
+    }
 
     return res.status(200).json({
       message: `Trạng thái đơn hàng đã được cập nhật sang ${nextStatus} ${user.roleId === "shipper" ? "và thêm shipper vào đơn hàng" : ""}`,
