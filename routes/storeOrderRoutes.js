@@ -1,5 +1,5 @@
 const express = require("express");
-const { updatePaymentMethod, createOrderFromCart, getOrderDetails, getAllOrders, updateOrderStatus, getOrdersByStore } = require("../controllers/storeOrderController");
+const { updatePaymentMethod, createOrderFromCart, getOrderDetails, getAllOrders, updateOrderStatus, getOrdersByStore, getDeliveredOrdersAndRevenue } = require("../controllers/storeOrderController");
 const { authenticateToken } = require("../middlewares/authMiddleware"); // Import the middleware
 const router = express.Router();
 
@@ -10,5 +10,6 @@ router.get("/details/:orderId", authenticateToken, getOrderDetails);
 router.get("/get-all-orders", authenticateToken, getAllOrders);
 router.put("/update-status/:storeId/:userId", authenticateToken, updateOrderStatus);
 router.get("/get-orders/:storeId", authenticateToken, getOrdersByStore);
+router.get("/delivered-revenue/:storeId", getDeliveredOrdersAndRevenue);
 
 module.exports = router;

@@ -363,6 +363,57 @@ const getOrdersByStore = async (req, res) => {
   }
 };
 
+const getDeliveredOrdersAndRevenue = async (req, res) => {
+  try {
+    const { storeId } = req.params; // Lấy storeId từ params
+
+    // Tìm tất cả các đơn hàng của cửa hàng cụ thể có trạng thái "Delivered"
+    const deliveredOrders = await StoreOrder.find({ store: storeId, orderStatus: "Delivered" })
+      .populate("user", "fullName") // Lấy tên người dùng
+      .populate("store", "storeName") // Lấy tên cửa hàng
+      .populate("foods", "foodName price"); // Lấy tên và giá món ăn
+
+    // Nếu không có đơn hàng nào với trạng thái "Delivered" cho cửa hàng này
+    if (deliveredOrders.length === 0) {
+      return res.status(404).json({ message: "Không có đơn hàng nào đã được giao cho cửa hàng này." });
+    }
+
+    // Tính tổng doanh thu bằng cách cộng tất cả totalAmount của các đơn hàng
+    const totalRevenue = deliveredOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+
+    // Chuẩn bị dữ liệu trả về
+    const deliveredOrdersDetails = deliveredOrders.map((order) => ({
+      orderId: order._id,
+      user: {
+        userId: order.user._id,
+        fullName: order.user.fullName,
+      },
+      store: {
+        storeId: order.store._id,
+        storeName: order.store.storeName,
+      },
+      foods: order.foods.map((food) => ({
+        foodName: food.foodName,
+        price: food.price,
+        quantity: order.foods.find((f) => f._id.equals(food._id)).quantity, // Giả sử bạn lưu quantity
+      })),
+      totalAmount: order.totalAmount,
+      orderDate: order.orderDate,
+      deliveryAddress: order.deliveryAddress,
+    }));
+
+    // Trả về danh sách đơn hàng đã giao cho cửa hàng này và tổng doanh thu
+    res.status(200).json({
+      message: "Danh sách đơn hàng đã được giao và tổng doanh thu cho cửa hàng",
+      deliveredOrdersDetails,
+      totalRevenue,
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy đơn hàng đã giao và tính doanh thu:", error);
+    res.status(500).json({ error: "Lỗi khi lấy đơn hàng đã giao và tính doanh thu." });
+  }
+};
+
 module.exports = {
   updatePaymentMethod,
   createOrderFromCart,
@@ -370,4 +421,5 @@ module.exports = {
   getAllOrders,
   updateOrderStatus,
   getOrdersByStore,
+  getDeliveredOrdersAndRevenue,
 };
