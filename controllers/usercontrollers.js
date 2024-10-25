@@ -244,6 +244,9 @@ const registerUser = async (req, res, next) => {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      tls: {
+        rejectUnauthorized: false, // Bỏ qua kiểm tra SSL
+      },
     });
 
     const mailOptions = {
@@ -344,10 +347,10 @@ const loginUser = async (req, res, next) => {
     await user.save();
 
     // Cập nhật phương thức đăng nhập là số điện thoại hoặc tài khoản trực tiếp
-    await User.findByIdAndUpdate(user._id, { 
-      isPhoneLogin: true, 
-      isGoogleLogin: false, 
-      isFacebookLogin: false 
+    await User.findByIdAndUpdate(user._id, {
+      isPhoneLogin: true,
+      isGoogleLogin: false,
+      isFacebookLogin: false,
     });
 
     // Trả về phản hồi đăng nhập thành công, bao gồm isActive, storeId và storeIds (nếu là staff hoặc seller)
