@@ -124,6 +124,9 @@ const UserSchema = new mongoose.Schema(
       default: 0, // Số lượng cửa hàng bắt đầu từ 0
       min: 0, // Giá trị tối thiểu của storeCount là 0
     },
+    isPhoneLogin: { type: Boolean, default: false },
+    isGoogleLogin: { type: Boolean, default: false },
+    isFacebookLogin: { type: Boolean, default: false },
   },
   {
     validateBeforeSave: true,

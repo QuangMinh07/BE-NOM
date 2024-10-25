@@ -343,6 +343,13 @@ const loginUser = async (req, res, next) => {
     user.isOnline = true;
     await user.save();
 
+    // Cập nhật phương thức đăng nhập là số điện thoại hoặc tài khoản trực tiếp
+    await User.findByIdAndUpdate(user._id, { 
+      isPhoneLogin: true, 
+      isGoogleLogin: false, 
+      isFacebookLogin: false 
+    });
+
     // Trả về phản hồi đăng nhập thành công, bao gồm isActive, storeId và storeIds (nếu là staff hoặc seller)
     res.status(200).json({
       success: true,
@@ -468,7 +475,6 @@ const getProfile = async (req, res, next) => {
     next(error);
   }
 };
-
 
 const updateUser = async (req, res, next) => {
   const { phone, email, fullName, address } = req.body;

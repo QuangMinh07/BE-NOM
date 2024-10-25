@@ -6,6 +6,8 @@ const User = require("../models/user");
 const Store = require("../models/store");
 const ShipperInfo = require("../models/shipper");
 const UserPersonalInfo = require("../models/userPersonal");
+const StoreOrder = require("../models/storeOrder");
+const Food = require("../models/food");
 
 const registerAdmin = async (req, res, next) => {
   const { username, fullName, password } = req.body;
@@ -179,6 +181,84 @@ const getAllUser = async (req, res) => {
       success: true,
       data: users,
       total: totalUsers,
+      page,
+      totalPages: Math.ceil(totalUsers / limit),
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    return res.status(500).json({ success: false, msg: "Lỗi server" });
+  }
+};
+
+const getAllUsers = async (req, res) => {
+  try {
+    const {
+      sortField = "userName", // Mặc định sắp xếp theo tên
+      sortOrder = "asc", // Mặc định sắp xếp tăng dần (A -> Z)
+      role, // Lọc theo vai trò customer, seller, shipper
+      isOnline, // Lọc theo trạng thái online hoặc offline
+    } = req.query;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    // Lọc người dùng theo vai trò nếu có truyền
+    const query = role ? { roleId: role } : { roleId: { $in: ["customer", "seller", "shipper"] } };
+
+    // Nếu có truyền isOnline, thêm điều kiện lọc online hoặc offline
+    if (typeof isOnline !== "undefined") {
+      query.isOnline = isOnline === "true"; // Chuyển giá trị isOnline từ string thành Boolean
+    }
+
+    // Tạo đối tượng sắp xếp
+    const sortOptions = {};
+    if (sortField && sortOrder) {
+      sortOptions[sortField] = sortOrder === "asc" ? 1 : -1;
+    }
+
+    // Lấy danh sách người dùng theo sắp xếp và phân trang, đồng thời populate storeIds
+    let users = await User.find(query).sort(sortOptions).skip(skip).limit(limit).populate({
+      path: "storeIds",
+      model: "Store",
+      select: "storeName storeAddress bankAccount foodType createdAt", // Lấy các trường từ Store
+    });
+
+    // Nếu roleId là shipper thì populate thêm ShipperInfo
+    users = await Promise.all(
+      users.map(async (user) => {
+        if (user.roleId === "shipper") {
+          const shipperInfo = await ShipperInfo.findOne({ userId: user._id });
+          return {
+            ...user.toObject(),
+            shipperInfo: shipperInfo
+              ? {
+                  vehicleNumber: shipperInfo.vehicleNumber,
+                  temporaryAddress: shipperInfo.temporaryAddress,
+                  bankAccount: shipperInfo.bankAccount,
+                }
+              : null,
+          };
+        }
+        return user;
+      })
+    );
+
+    // Lấy tổng số tài khoản trong hệ thống
+    const totalUsersInSystem = await User.countDocuments(); // Tổng số tất cả tài khoản không phân biệt loại
+
+    // Lấy tổng số tài khoản theo bộ lọc đã áp dụng
+    const totalUsers = await User.countDocuments(query);
+
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, msg: "Không tìm thấy người dùng" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: users,
+      totalFiltered: totalUsers, // Số tài khoản theo bộ lọc
+      totalUsers: totalUsersInSystem, // Tổng số tài khoản không phân biệt loại
       page,
       totalPages: Math.ceil(totalUsers / limit),
     });
@@ -461,6 +541,272 @@ const rejectShipper = async (req, res) => {
   }
 };
 
+const getDeliveredOrdersAndRevenue = async (req, res) => {
+  try {
+    // Tìm tất cả các đơn hàng có trạng thái "Delivered"
+    const deliveredOrders = await StoreOrder.find({ orderStatus: "Delivered" })
+      .populate("user", "fullName") // Lấy tên người dùng
+      .populate("store", "storeName") // Lấy tên cửa hàng
+      .populate("foods", "foodName price"); // Lấy tên và giá món ăn
+
+    // Nếu không có đơn hàng nào với trạng thái "Delivered"
+    if (deliveredOrders.length === 0) {
+      return res.status(404).json({ message: "Không có đơn hàng nào đã được giao." });
+    }
+
+    // Tính tổng doanh thu bằng cách cộng tất cả totalAmount của các đơn hàng
+    const totalRevenue = deliveredOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+
+    // Chuẩn bị dữ liệu trả về
+    const deliveredOrdersDetails = deliveredOrders.map((order) => ({
+      orderId: order._id,
+      user: {
+        userId: order.user._id,
+        fullName: order.user.fullName,
+      },
+      store: {
+        storeId: order.store._id,
+        storeName: order.store.storeName,
+      },
+      foods: order.foods.map((food) => ({
+        foodName: food.foodName,
+        price: food.price,
+        quantity: order.foods.find((f) => f._id.equals(food._id)).quantity, // Giả sử bạn lưu quantity
+      })),
+      totalAmount: order.totalAmount,
+      orderDate: order.orderDate,
+      deliveryAddress: order.deliveryAddress,
+    }));
+
+    // Trả về danh sách đơn hàng đã giao và tổng doanh thu
+    res.status(200).json({
+      message: "Danh sách đơn hàng đã được giao và tổng doanh thu",
+      deliveredOrdersDetails,
+      totalRevenue,
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy đơn hàng đã giao và tính doanh thu:", error);
+    res.status(500).json({ error: "Lỗi khi lấy đơn hàng đã giao và tính doanh thu." });
+  }
+};
+
+const getAllFoods = async (req, res) => {
+  const { page = 1, limit = 10, sortField = "foodName", sortOrder = "asc" } = req.query;
+
+  try {
+    // Tạo đối tượng sắp xếp, bao gồm sắp xếp theo isAvailable
+    const sortOptions = { [sortField]: sortOrder === "asc" ? 1 : -1 };
+
+    // Tìm tất cả món ăn, phân trang và sắp xếp
+    const foods = await Food.find()
+      .populate({
+        path: "store",
+        select: "storeName",
+      })
+      .populate({
+        path: "foodGroup",
+        select: "groupName",
+      })
+      .sort(sortOptions) // Sắp xếp theo sortOptions
+      .skip((page - 1) * limit) // Phân trang
+      .limit(limit); // Giới hạn số lượng kết quả
+
+    if (!foods || foods.length === 0) {
+      return res.status(404).json({ message: "Không tìm thấy món ăn nào" });
+    }
+
+    // Lấy tổng số lượng món ăn
+    const totalItems = await Food.countDocuments();
+
+    // Tính tổng giá trị của tất cả các món ăn
+    const totalPriceOfFoods = await Food.aggregate([
+      {
+        $group: {
+          _id: null, // Không nhóm theo bất kỳ trường nào
+          totalPrice: { $sum: "$price" }, // Tính tổng tất cả giá của món ăn
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      message: "Lấy tất cả món ăn thành công",
+      foods: foods.map((food) => ({
+        _id: food._id,
+        foodName: food.foodName,
+        price: food.price,
+        description: food.description,
+        store: food.store.storeName,
+        imageUrl: food.imageUrl,
+        foodGroup: food.foodGroup.groupName,
+        isAvailable: food.isAvailable,
+        isForSale: food.isForSale,
+        sellingTime: food.sellingTime,
+        createdAt: food.createdAt,
+        updatedAt: food.updatedAt,
+      })),
+      totalItems, // Tổng số lượng món ăn
+      totalPrice: totalPriceOfFoods.length > 0 ? totalPriceOfFoods[0].totalPrice : 0, // Tổng giá trị các món ăn
+      totalPages: Math.ceil(totalItems / limit),
+      currentPage: page,
+    });
+  } catch (error) {
+    console.error("Lỗi server:", error);
+    return res.status(500).json({ message: "Lỗi server khi lấy danh sách món ăn", error });
+  }
+};
+
+const getAllOrders = async (req, res) => {
+  try {
+    // Lấy tất cả các đơn hàng và populate thông tin người dùng và cửa hàng
+    const orders = await StoreOrder.find()
+      .populate("user", "fullName") // Lấy tên người dùng
+      .populate("store", "storeName") // Lấy tên cửa hàng
+      .populate("foods", "foodName price"); // Lấy tên và giá món ăn
+
+    // Nếu không có đơn hàng
+    if (orders.length === 0) {
+      return res.status(404).json({ message: "Không có đơn hàng nào." });
+    }
+
+    // Tính tổng số lượng đơn hàng
+    const totalOrdersCount = await StoreOrder.countDocuments();
+
+    // Tính tổng giá trị của tất cả các đơn hàng
+    const totalOrderAmount = await StoreOrder.aggregate([
+      {
+        $group: {
+          _id: null, // Không nhóm theo bất kỳ trường nào
+          totalAmount: { $sum: "$totalAmount" }, // Tính tổng tất cả totalAmount của các đơn hàng
+        },
+      },
+    ]);
+
+    // Chuẩn bị dữ liệu trả về
+    const allOrdersDetails = orders.map((order) => ({
+      orderId: order._id,
+      user: {
+        userId: order.user._id,
+        fullName: order.user.fullName,
+      },
+      store: {
+        storeId: order.store._id,
+        storeName: order.store.storeName,
+      },
+      foods: order.foods.map((food) => ({
+        foodName: food.foodName,
+        price: food.price,
+        quantity: order.foods.find((f) => f._id.equals(food._id)).quantity, // Giả sử bạn lưu quantity
+      })),
+      totalAmount: order.totalAmount,
+      orderDate: order.orderDate,
+      orderStatus: order.orderStatus,
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
+    }));
+
+    // Trả về tất cả đơn hàng, tổng số lượng đơn hàng và tổng giá trị
+    res.status(200).json({
+      message: "Danh sách đơn hàng",
+      totalOrdersCount, // Tổng số đơn hàng
+      totalOrderAmount: totalOrderAmount.length > 0 ? totalOrderAmount[0].totalAmount : 0, // Tổng giá trị của các đơn hàng
+      allOrdersDetails,
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy tất cả đơn hàng:", error);
+    res.status(500).json({ error: "Lỗi khi lấy tất cả đơn hàng." });
+  }
+};
+
+// const getAllUsersLogin = async (req, res) => {
+//   try {
+//     const {
+//       sortField = "userName", // Mặc định sắp xếp theo tên
+//       sortOrder = "asc", // Mặc định sắp xếp tăng dần (A -> Z)
+//       role, // Lọc theo vai trò customer, seller, shipper
+//       isOnline, // Lọc theo trạng thái online hoặc offline
+//     } = req.query;
+
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 10;
+//     const skip = (page - 1) * limit;
+
+//     // Lọc người dùng theo vai trò nếu có truyền
+//     const query = role ? { roleId: role } : { roleId: { $in: ["customer", "seller", "shipper"] } };
+
+//     // Nếu có truyền isOnline, thêm điều kiện lọc online hoặc offline
+//     if (typeof isOnline !== "undefined") {
+//       query.isOnline = isOnline === "true"; // Chuyển giá trị isOnline từ string thành Boolean
+//     }
+
+//     // Tạo đối tượng sắp xếp
+//     const sortOptions = {};
+//     if (sortField && sortOrder) {
+//       sortOptions[sortField] = sortOrder === "asc" ? 1 : -1;
+//     }
+
+//     // Lấy danh sách người dùng theo sắp xếp và phân trang
+//     let users = await User.find(query).sort(sortOptions).skip(skip).limit(limit).populate({
+//       path: "storeIds",
+//       model: "Store",
+//       select: "storeName storeAddress bankAccount foodType createdAt", // Lấy các trường từ Store
+//     });
+
+//     // Thêm các cờ (flags) về phương thức đăng nhập trực tiếp trong dữ liệu trả về
+//     users = users.map((user) => ({
+//       ...user.toObject(),
+//       isPhoneLogin: user.isPhoneLogin,
+//       isGoogleLogin: user.isGoogleLogin,
+//       isFacebookLogin: user.isFacebookLogin,
+//     }));
+
+//     // Lấy tổng số tài khoản trong hệ thống
+//     const totalUsersInSystem = await User.countDocuments(); // Tổng số tất cả tài khoản không phân biệt loại
+
+//     // Lấy tổng số tài khoản theo bộ lọc đã áp dụng
+//     const totalUsers = await User.countDocuments(query);
+
+//     if (users.length === 0) {
+//       return res.status(404).json({ success: false, msg: "Không tìm thấy người dùng" });
+//     }
+
+//     return res.status(200).json({
+//       success: true,
+//       data: users,
+//       totalFiltered: totalUsers, // Số tài khoản theo bộ lọc
+//       totalUsers: totalUsersInSystem, // Tổng số tài khoản không phân biệt loại
+//       page,
+//       totalPages: Math.ceil(totalUsers / limit),
+//     });
+//   } catch (error) {
+//     console.error("Error:", error);
+//     return res.status(500).json({ success: false, msg: "Lỗi server" });
+//   }
+// };
+
+const getLoginMethodStatistics = async (req, res) => {
+  try {
+    // Đếm số lượng người dùng theo phương thức đăng nhập
+    const phoneLoginCount = await User.countDocuments({ isPhoneLogin: true });
+    const googleLoginCount = await User.countDocuments({ isGoogleLogin: true });
+    const facebookLoginCount = await User.countDocuments({ isFacebookLogin: true });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        phoneLoginCount,
+        googleLoginCount,
+        facebookLoginCount,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching login statistics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error while fetching login statistics",
+    });
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
@@ -471,4 +817,9 @@ module.exports = {
   getAllStores,
   approveShipper,
   rejectShipper,
+  getDeliveredOrdersAndRevenue,
+  getAllUsers,
+  getAllFoods,
+  getAllOrders,
+  getLoginMethodStatistics,
 };
