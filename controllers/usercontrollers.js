@@ -456,6 +456,50 @@ const verifyEmail = async (req, res, next) => {
   }
 };
 
+const verifyPhoneOtp = async (req, res, next) => {
+  const { phone, verificationCode } = req.body;
+
+  // Kiểm tra sự tồn tại của phone và verificationCode
+  if (!phone || !verificationCode) {
+    return next(errorHandler(400, "Số điện thoại và mã xác thực là bắt buộc"));
+  }
+
+  try {
+    // Tìm người dùng dựa trên số điện thoại
+    const user = await User.findOne({ phoneNumber: phone });
+
+    if (!user) {
+      return next(errorHandler(400, "Người dùng không tồn tại"));
+    }
+
+    if (user.isVerified) {
+      return next(errorHandler(400, "Tài khoản đã được xác thực"));
+    }
+
+    // Kiểm tra mã OTP và thời gian hết hạn
+    if (user.verificationCode !== verificationCode) {
+      return next(errorHandler(400, "Mã xác thực không đúng"));
+    }
+
+    if (user.verificationCodeExpiry < Date.now()) {
+      return next(errorHandler(400, "Mã xác thực đã hết hạn"));
+    }
+
+    // Nếu tất cả điều kiện hợp lệ, đánh dấu tài khoản đã xác thực
+    user.isVerified = true;
+    user.verificationCode = undefined;
+    user.verificationCodeExpiry = undefined;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Xác thực số điện thoại thành công! Bạn có thể đăng nhập.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getProfile = async (req, res, next) => {
   try {
     // Lấy thông tin người dùng từ database dựa trên user ID trong token
@@ -587,6 +631,52 @@ const resendVerificationCode = async (req, res, next) => {
     });
   } catch (error) {
     console.error("Error in resendVerificationCode:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Gửi lại mã xác thực thất bại",
+      error: error.message,
+    });
+  }
+};
+
+const resendVerificationCodeForPhone = async (req, res, next) => {
+  const { phone } = req.body;
+
+  // Kiểm tra nếu số điện thoại được cung cấp
+  if (!phone) {
+    return next(errorHandler(400, "Số điện thoại là bắt buộc"));
+  }
+
+  try {
+    // Tìm người dùng dựa trên số điện thoại
+    const user = await User.findOne({ phoneNumber: phone });
+
+    // Nếu người dùng không tồn tại
+    if (!user) {
+      return next(errorHandler(404, "Người dùng không tồn tại"));
+    }
+
+    // Nếu tài khoản đã được xác thực
+    if (user.isVerified) {
+      return next(errorHandler(400, "Tài khoản đã được xác thực"));
+    }
+
+    // Tạo mã xác thực mới và thời gian hết hạn
+    const newVerificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const newVerificationCodeExpiry = Date.now() + 1 * 60 * 1000; // Hết hạn sau 1 phút
+
+    // Cập nhật mã xác thực và thời gian hết hạn trong cơ sở dữ liệu
+    user.verificationCode = newVerificationCode;
+    user.verificationCodeExpiry = newVerificationCodeExpiry;
+    await user.save();
+
+    // Trả về phản hồi thành công
+    res.status(200).json({
+      success: true,
+      message: "Mã xác thực đã được tạo mới. Vui lòng kiểm tra SMS của bạn.",
+    });
+  } catch (error) {
+    console.error("Error in resendVerificationCodeForPhone:", error);
     return res.status(500).json({
       success: false,
       message: "Gửi lại mã xác thực thất bại",
@@ -803,4 +893,6 @@ module.exports = {
   registerSeller,
   checkApprovalStatus,
   registerShipper,
+  verifyPhoneOtp,
+  resendVerificationCodeForPhone,
 };
