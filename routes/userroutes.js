@@ -1,5 +1,5 @@
 const express = require("express");
-const { verifyEmail, getProfile, loginUser, registerUser, resendVerificationCodeForPhone, verifyPhoneOtp, updateUser, sendResetPasswordEmail, resetPassword, changePassword, resendVerificationCode, logoutUser, setOnlineStatus, registerSeller, checkApprovalStatus, registerShipper } = require("../controllers/usercontrollers");
+const { verifyEmail, getProfile, loginUser, registerUser, sendverifyEmail, resendVerificationCodeForPhone, verifyPhoneOtp, updateUser, sendResetPasswordEmail, resetPassword, changePassword, resendVerificationCode, logoutUser, setOnlineStatus, registerSeller, checkApprovalStatus, registerShipper } = require("../controllers/usercontrollers");
 // const passport = require('passport');
 const { authenticateToken } = require("../middlewares/authMiddleware");
 
@@ -10,6 +10,7 @@ router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.post("/logout", authenticateToken, logoutUser);
 router.post("/verify-email", verifyEmail); // Route để xác thực email
+router.post("/send-verify-email", sendverifyEmail); // Route để xác thực email
 router.post("/verify-PhoneOtp", verifyPhoneOtp);
 router.post("/resend-verification-code", resendVerificationCode);
 router.post("/resend-verification-codePhone", resendVerificationCodeForPhone);

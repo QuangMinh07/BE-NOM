@@ -132,15 +132,37 @@ const sendResetPasswordEmail = async (req, res) => {
   }
 };
 
+// Hàm gửi email xác thực
+const sendVerificationEmail = async (email, verificationCode) => {
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+    tls: {
+      rejectUnauthorized: false, // Bỏ qua kiểm tra SSL
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: "Mã Xác Thực Đăng Ký",
+    text: `Mã xác thực của bạn là: ${verificationCode}. Mã xác thực sẽ hết hạn sau 1 phút.`,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+// Hàm đăng ký người dùng
 const registerUser = async (req, res, next) => {
   const { username, phone, email, password } = req.body;
 
-  // Kiểm tra các trường bắt buộc
   if (!username || !phone || !email || !password) {
     return next(errorHandler(400, "Tất cả các trường username, phone, email và password đều phải nhập"));
   }
 
-  // Kiểm tra độ dài username và password
   if (username.length < 7 || username.length > 20) {
     return next(errorHandler(400, "Tên người dùng phải có từ 7 đến 20 ký tự"));
   }
@@ -155,22 +177,19 @@ const registerUser = async (req, res, next) => {
   }
 
   try {
-    // Kiểm tra nếu staff đã tồn tại dựa trên phone và name
     const existingStaff = await Staff.findOne({ phone: phone, name: username });
 
-    let role = "customer"; // Vai trò mặc định là customer
-    let storeId = null; // Sẽ lưu storeId nếu đăng ký là staff
+    let role = "customer";
+    let storeId = null;
 
     if (existingStaff) {
-      // Nếu là nhân viên, chuyển vai trò thành "staff"
       if (existingStaff.user) {
         return next(errorHandler(400, "Nhân viên này đã đăng ký tài khoản"));
       }
-      role = "staff"; // Đặt vai trò là staff
-      storeId = existingStaff.store; // Lấy storeId từ thông tin của nhân viên
+      role = "staff";
+      storeId = existingStaff.store;
     }
 
-    // Kiểm tra xem username, phone hoặc email đã tồn tại chưa
     const existingUser = await User.findOne({
       $or: [{ userName: username }, { phoneNumber: phone }, { email: email }],
     });
@@ -187,14 +206,10 @@ const registerUser = async (req, res, next) => {
       }
     }
 
-    // Mã hóa mật khẩu
     const hashedPassword = bcryptjs.hashSync(password, 10);
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationCodeExpiry = Date.now() + 1 * 60 * 1000;
 
-    // Tạo mã xác thực và thời gian hết hạn
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString(); // Mã xác thực 6 chữ số
-    const verificationCodeExpiry = Date.now() + 1 * 60 * 1000; // 1 phút
-
-    // Tạo người dùng mới với vai trò được xác định
     const newUser = new User({
       userName: username,
       phoneNumber: phone,
@@ -202,66 +217,67 @@ const registerUser = async (req, res, next) => {
       password: hashedPassword,
       verificationCode: verificationCode,
       verificationCodeExpiry: verificationCodeExpiry,
-      roleId: role, // Vai trò (customer hoặc staff)
-      storeIds: storeId ? [storeId] : [], // Nếu là staff thì thêm storeId vào storeIds
+      roleId: role,
+      storeIds: storeId ? [storeId] : [],
     });
 
-    // Lưu người dùng vào cơ sở dữ liệu
     await newUser.save();
 
-    // Tạo thông tin cá nhân cho người dùng với ảnh ảo mặc định
-    const defaultProfilePictureURL = "https://example.com/random-image.jpg"; // URL ảnh ảo
+    const defaultProfilePictureURL = "https://example.com/random-image.jpg";
 
     const newUserPersonalInfo = new UserPersonalInfo({
       userId: newUser._id,
-      profilePictureURL: defaultProfilePictureURL, // Gán ảnh ảo vào profilePictureURL
+      profilePictureURL: defaultProfilePictureURL,
     });
 
-    // Lưu thông tin cá nhân vào cơ sở dữ liệu
     await newUserPersonalInfo.save();
 
-    // Nếu là nhân viên, liên kết tài khoản mới với nhân viên và cập nhật thông tin của nhân viên
     if (role === "staff") {
-      existingStaff.user = newUser._id; // Liên kết người dùng mới với nhân viên
-      existingStaff.isActive = true; // Đánh dấu nhân viên là active
+      existingStaff.user = newUser._id;
+      existingStaff.isActive = true;
       await existingStaff.save();
 
-      // Tìm và cập nhật roleId trong store.staffList
       const store = await Store.findById(storeId);
       if (store) {
         const staffIndex = store.staffList.findIndex((staff) => staff.staffId.equals(existingStaff._id));
         if (staffIndex !== -1) {
-          store.staffList[staffIndex].roleId = "staff"; // Cập nhật roleId của nhân viên
+          store.staffList[staffIndex].roleId = "staff";
           await store.save();
         }
       }
     }
 
-    // Gửi email xác thực
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      tls: {
-        rejectUnauthorized: false, // Bỏ qua kiểm tra SSL
-      },
-    });
-
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Mã Xác Thực Đăng Ký",
-      text: `Mã xác thực của bạn là: ${verificationCode}. Mã xác thực sẽ hết hạn sau 1 phút.`,
-    };
-
-    await transporter.sendMail(mailOptions);
-
-    // Trả về phản hồi yêu cầu xác thực email
+    // Không gọi hàm gửi mã xác thực tại đây
     res.status(201).json({
       success: true,
-      message: "Đăng ký thành công! Vui lòng kiểm tra email của bạn để xác thực.",
+      message: "Đăng ký thành công! Bạn có thể yêu cầu mã xác thực qua API verifyEmail.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// API verifyEmail để gửi lại mã xác thực
+const sendverifyEmail = async (req, res, next) => {
+  const { email } = req.body;
+
+  try {
+    const user = await User.findOne({ email: email });
+
+    if (!user) {
+      return next(errorHandler(400, "Không tìm thấy người dùng với email này"));
+    }
+
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationCode = verificationCode;
+    user.verificationCodeExpiry = Date.now() + 1 * 60 * 1000;
+    await user.save();
+
+    await sendVerificationEmail(email, verificationCode);
+
+    res.status(200).json({
+      success: true,
+      message: "Mã xác thực đã được gửi đến email của bạn",
     });
   } catch (error) {
     next(error);
@@ -895,4 +911,5 @@ module.exports = {
   registerShipper,
   verifyPhoneOtp,
   resendVerificationCodeForPhone,
+  sendverifyEmail,
 };
