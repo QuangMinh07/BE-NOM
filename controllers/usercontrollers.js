@@ -9,6 +9,8 @@ const Staff = require("../models/staff"); // Đường dẫn tới modal Staff c
 const UserPersonalInfo = require("../models/userPersonal"); // Đường dẫn tới modal Staff của bạn
 const ShipperInfo = require("../models/shipper");
 // const firebase = require("../firebase");
+const { rejectSeller } = require("../controllers/admincontroller");
+const { rejectShipper } = require("../controllers/admincontroller");
 
 const changePassword = async (req, res) => {
   try {
@@ -753,7 +755,6 @@ const registerSeller = async (req, res) => {
 
     // Lưu thông tin cửa hàng
     await newStore.save();
-
     console.log("New store created with ID:", newStore._id);
 
     // Cập nhật các trường khác cho người dùng
@@ -763,6 +764,7 @@ const registerSeller = async (req, res) => {
     user.businessType = businessType || user.businessType;
     user.idImage = idImage || user.idImage;
     user.isApproved = false; // Đặt trạng thái chờ duyệt
+    user.approvalExpiry = Date.now() + 1 * 60 * 1000; // Thời gian hết hạn sau 1 phút
 
     // Thêm storeId vào danh sách storeIds của người dùng
     user.storeIds.push(newStore._id);
@@ -784,6 +786,15 @@ const registerSeller = async (req, res) => {
       message: "Đăng ký người bán thành công, chờ admin duyệt",
       user: populatedUser,
     });
+
+    // Thiết lập kiểm tra tự động từ chối sau 1 phút nếu chưa duyệt
+    setTimeout(async () => {
+      const updatedUser = await User.findById(userId);
+      if (!updatedUser.isApproved && Date.now() >= updatedUser.approvalExpiry) {
+        await rejectSeller({ body: { userId } }, { status: () => ({ json: () => {} }) });
+        console.log(`User ${userId} đã bị từ chối tự động do quá hạn duyệt.`);
+      }
+    }, 1 * 60 * 1000); // Đếm ngược 1 phút
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Lỗi server" });
@@ -886,6 +897,15 @@ const registerShipper = async (req, res) => {
       personalInfo,
       shipperInfo,
     });
+
+    // Thiết lập kiểm tra tự động từ chối sau 1 phút nếu chưa duyệt
+    setTimeout(async () => {
+      const updatedUser = await User.findById(userId);
+      if (!updatedUser.isApproved && Date.now() >= updatedUser.approvalExpiry) {
+        await rejectShipper({ body: { userId } }, { status: () => ({ json: () => {} }) });
+        console.log(`User ${userId} đã bị từ chối tự động do quá hạn duyệt.`);
+      }
+    }, 1 * 60 * 1000); // Đếm ngược 1 phút
   } catch (error) {
     console.error("Lỗi khi đăng ký shipper:", error);
     res.status(500).json({ message: "Lỗi server khi đăng ký shipper", error });

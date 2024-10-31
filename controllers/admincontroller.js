@@ -8,6 +8,7 @@ const ShipperInfo = require("../models/shipper");
 const UserPersonalInfo = require("../models/userPersonal");
 const StoreOrder = require("../models/storeOrder");
 const Food = require("../models/food");
+const nodemailer = require("nodemailer");
 
 const registerAdmin = async (req, res, next) => {
   const { username, fullName, password } = req.body;
@@ -268,6 +269,29 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+const sendApprovalEmail = async (email, subject, message) => {
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+    tls: {
+      rejectUnauthorized: false,
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject,
+    text: message,
+  };
+
+  await transporter.sendMail(mailOptions);
+  console.log(`Email sent to ${email} with subject: ${subject}`);
+};
+
 const approveSeller = async (req, res) => {
   const { userId } = req.body;
 
@@ -294,6 +318,9 @@ const approveSeller = async (req, res) => {
 
     // Lưu thông tin người dùng
     await user.save();
+
+    // Gửi email thông báo phê duyệt
+    await sendApprovalEmail(user.email, "Yêu Cầu Đăng Ký Người Bán Được Phê Duyệt", `Chúc mừng ${user.fullName}, tài khoản của bạn đã được phê duyệt làm người bán.`);
 
     res.status(200).json({
       message: "Người bán đã được duyệt thành công",
@@ -343,6 +370,9 @@ const rejectSeller = async (req, res) => {
 
     // Lưu thay đổi người dùng
     await user.save();
+
+    // Gửi email thông báo từ chối
+    await sendApprovalEmail(user.email, "Yêu Cầu Đăng Ký Người Bán Bị Từ Chối", `Xin chào ${user.fullName}, yêu cầu đăng ký làm người bán của bạn đã bị từ chối.`);
 
     res.status(200).json({
       message: "Người dùng đã bị từ chối và quay lại vai trò customer. Cửa hàng đã bị xóa.",
@@ -468,6 +498,9 @@ const approveShipper = async (req, res) => {
     // Lưu thông tin người dùng
     await user.save();
 
+    // Gửi email thông báo phê duyệt
+    await sendApprovalEmail(user.email, "Yêu Cầu Đăng Ký Shipper Được Phê Duyệt", `Xin chào ${user.fullName}, yêu cầu đăng ký làm shipper của bạn đã bị từ chối.`);
+
     res.status(200).json({
       message: "Shipper đã được duyệt thành công",
       user,
@@ -522,6 +555,9 @@ const rejectShipper = async (req, res) => {
 
     // Lưu thay đổi người dùng
     await user.save();
+
+    // Gửi email thông báo phê duyệt
+    await sendApprovalEmail(user.email, "Yêu Cầu Đăng Ký Shipper Bị Từ Chối", `Chúc mừng ${user.fullName}, tài khoản của bạn đã được phê duyệt làm shipper.`);
 
     res.status(200).json({
       message: "Người dùng đã bị từ chối và quay lại vai trò customer. Thông tin shipper đã được xóa.",

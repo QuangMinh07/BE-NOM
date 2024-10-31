@@ -78,6 +78,11 @@ const StoreSchema = new mongoose.Schema({
 
   imageURL: { type: String, default: "" },
 
+  averageRating: {
+    type: Number,
+    default: 0, // Sao trung bình ban đầu là 0
+  },
+
   createdAt: {
     type: Date,
     default: Date.now,

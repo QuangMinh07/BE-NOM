@@ -27,6 +27,7 @@ const storeOrderRoute = require("./routes/storeOrderRoutes");
 const OrderCancellationRoute = require("./routes/OrderCancellationRoutes");
 const shipperRoute = require("./routes/shipperroutes");
 const chatRoute = require("./routes/chatRoutes");
+const orderReviewRoute = require("./routes/orderReviewRoutes");
 
 const port = process.env.PORT || 8888;
 
@@ -58,6 +59,7 @@ app.use("/v1/storeOrder", storeOrderRoute);
 app.use("/v1/OrderCancellation", OrderCancellationRoute);
 app.use("/v1/shipper", shipperRoute);
 app.use("/v1/chat", chatRoute);
+app.use("/v1/orderReview", orderReviewRoute);
 
 // app.use(bodyParser.json({ limit: "200mb" })); // Để xử lý JSON lớn, bao gồm dữ liệu Base64
 

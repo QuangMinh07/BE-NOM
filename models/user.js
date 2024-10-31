@@ -127,6 +127,10 @@ const UserSchema = new mongoose.Schema(
     isPhoneLogin: { type: Boolean, default: false },
     isGoogleLogin: { type: Boolean, default: false },
     isFacebookLogin: { type: Boolean, default: false },
+    approvalExpiry: {
+      type: Date,
+      default: null, // Đặt là null khi không có yêu cầu cần duyệt
+    },
   },
   {
     validateBeforeSave: true,
