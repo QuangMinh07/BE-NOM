@@ -78,4 +78,16 @@ const getStoreReviews = async (req, res) => {
   }
 };
 
-module.exports = { rateOrderAndStore, getStoreReviews };
+const checkOrderReview = async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    const review = await OrderReview.findOne({ order: orderId });
+    res.status(200).json({ exists: !!review });
+  } catch (error) {
+    console.error("Error checking OrderReview:", error);
+    res.status(500).json({ message: "Error checking OrderReview" });
+  }
+};
+
+module.exports = { rateOrderAndStore, getStoreReviews, checkOrderReview };

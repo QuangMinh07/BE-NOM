@@ -3,6 +3,7 @@ const ShipperInfo = require("../models/shipper");
 const Cart = require("../models/cart");
 const User = require("../models/user");
 const Chat = require("../models/chat");
+const PaymentTransaction = require("../models/PaymentTransaction");
 
 const createOrderFromCart = async (req, res) => {
   try {
@@ -297,15 +298,28 @@ const updateOrderStatus = async (req, res) => {
       order.shipper = shipperInfo._id; // Cập nhật shipperId vào đơn hàng
     }
 
-    // Lưu đơn hàng đã cập nhật
-    await order.save();
-
-    // Kiểm tra trạng thái nếu là "Delivered" thì xóa phòng chat
+    // Nếu trạng thái chuyển sang "Delivered", cập nhật paymentStatus
     if (nextStatus === "Delivered") {
+      // Cập nhật paymentStatus thành "Paid"
+      order.paymentStatus = "Paid";
+      console.log("paymentStatus đã được cập nhật thành 'Paid'");
+
+      // Tìm và cập nhật transactionStatus của giao dịch tương ứng với đơn hàng
+      const transaction = await PaymentTransaction.findOne({ cart: order.cart });
+      if (transaction) {
+        transaction.transactionStatus = "Success";
+        await transaction.save();
+      } else {
+        console.log("Không tìm thấy giao dịch cho giỏ hàng:", order.cart);
+      }
+
       // Xóa phòng chat dựa trên roomId (orderId của đơn hàng)
       await Chat.deleteOne({ roomId: orderId });
       console.log(`Phòng chat với roomId ${orderId} đã bị xóa.`);
     }
+
+    // Lưu đơn hàng đã cập nhật
+    await order.save();
 
     return res.status(200).json({
       message: `Trạng thái đơn hàng đã được cập nhật sang ${nextStatus} ${user.roleId === "shipper" ? "và thêm shipper vào đơn hàng" : ""}`,
