@@ -6,7 +6,7 @@ const User = require("../models/user");
 const cancelOrder = async (req, res) => {
   try {
     const { userId, orderId } = req.params; // Lấy userId và orderId từ params
-    const { reason } = req.body; // Lý do hủy đơn hàng truyền qua body
+    const reason = req.body?.reason || "Không có lý do cụ thể"; // Kiểm tra và lấy lý do nếu có
 
     // Kiểm tra người dùng có tồn tại không
     const user = await User.findById(userId);
@@ -46,6 +46,24 @@ const cancelOrder = async (req, res) => {
   }
 };
 
+const getCancelledOrders = async (req, res) => {
+  try {
+    const cancelledOrders = await OrderCancellation.find({ cancellationStatus: "Canceled" })
+      .populate("user", "fullName email")
+      .populate("order", "orderStatus orderDate items");
+
+    if (!cancelledOrders.length) {
+      return res.status(404).json({ message: "Không có đơn hàng đã hủy." });
+    }
+
+    return res.status(200).json({ message: "Danh sách đơn hàng đã hủy.", cancelledOrders });
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách đơn hàng đã hủy:", error);
+    return res.status(500).json({ message: "Lỗi khi lấy danh sách đơn hàng đã hủy.", error: error.message });
+  }
+};
+
 module.exports = {
   cancelOrder,
+  getCancelledOrders,
 };

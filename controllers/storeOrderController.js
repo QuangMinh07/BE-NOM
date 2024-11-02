@@ -4,6 +4,7 @@ const Cart = require("../models/cart");
 const User = require("../models/user");
 const Chat = require("../models/chat");
 const PaymentTransaction = require("../models/PaymentTransaction");
+const { cancelOrder } = require("../controllers/OrderCancellationController"); // Import hàm hủy đơn hàng
 
 const createOrderFromCart = async (req, res) => {
   try {
@@ -91,6 +92,23 @@ const createOrderFromCart = async (req, res) => {
         cartSnapshot: populatedOrder.cartSnapshot, // Thêm thông tin snapshot của giỏ hàng
       },
     });
+
+    // Thiết lập kiểm tra tự động hủy sau 1 phút nếu đơn hàng vẫn chưa được xác nhận
+    setTimeout(async () => {
+      const updatedOrder = await StoreOrder.findById(savedOrder._id);
+
+      if (updatedOrder && updatedOrder.orderStatus === "Pending") {
+        // Thực hiện hàm `cancelOrder` để hủy đơn hàng nếu vẫn ở trạng thái "Pending"
+        await cancelOrder(
+          { params: { userId: cart.user, orderId: savedOrder._id } },
+          {
+            status: () => ({
+              json: (data) => console.log(`Đơn hàng ${savedOrder._id} đã bị hủy tự động sau 1 phút:`, data),
+            }),
+          }
+        );
+      }
+    }, 1 * 60 * 1000); // Hủy sau 1 phút
   } catch (error) {
     console.error("Lỗi khi tạo đơn hàng từ giỏ hàng:", error);
     res.status(500).json({ error: "Lỗi khi tạo đơn hàng." });

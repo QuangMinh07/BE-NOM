@@ -102,4 +102,29 @@ const sendMessage = async (req, res) => {
   }
 };
 
-module.exports = { getChatMessages, createChatRoom, sendMessage };
+const getChatRooms = async (req, res) => {
+  try {
+    const { userId, shipperId } = req.params; // Lấy userId hoặc shipperId từ URL parameters
+
+    // Tạo điều kiện tìm kiếm dựa trên userId hoặc shipperId
+    let filter = {};
+    if (userId) filter.userId = userId;
+    if (shipperId) filter.shipperId = shipperId;
+
+    // Tìm các phòng chat phù hợp với điều kiện
+    const chatRooms = await Chat.find(filter).select("roomId userId shipperId");
+
+    // Kiểm tra nếu không có phòng chat nào
+    if (!chatRooms || chatRooms.length === 0) {
+      return res.status(404).json({ message: "Không tìm thấy phòng chat" });
+    }
+
+    // Trả về danh sách các phòng chat
+    res.status(200).json({ chatRooms });
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách phòng chat:", error);
+    res.status(500).json({ error: "Không thể lấy danh sách phòng chat" });
+  }
+};
+
+module.exports = { getChatMessages, createChatRoom, sendMessage, getChatRooms };
