@@ -191,7 +191,7 @@ const getAllFoods = async (req, res) => {
     const foods = await Food.find()
       .populate({
         path: "store",
-        select: "storeName",
+        select: "storeName _id", // Lấy cả storeName và _id
       })
       .populate({
         path: "foodGroup",
