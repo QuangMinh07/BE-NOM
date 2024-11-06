@@ -794,7 +794,7 @@ const registerSeller = async (req, res) => {
         await rejectSeller({ body: { userId } }, { status: () => ({ json: () => {} }) });
         console.log(`User ${userId} đã bị từ chối tự động do quá hạn duyệt.`);
       }
-    }, 1 * 60 * 1000); // Đếm ngược 1 phút
+    }, 24 * 60 * 60 * 1000); // Đếm ngược 1 phút
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Lỗi server" });
@@ -905,7 +905,7 @@ const registerShipper = async (req, res) => {
         await rejectShipper({ body: { userId } }, { status: () => ({ json: () => {} }) });
         console.log(`User ${userId} đã bị từ chối tự động do quá hạn duyệt.`);
       }
-    }, 1 * 60 * 1000); // Đếm ngược 1 phút
+    }, 24 * 60 * 60 * 1000); // Đếm ngược 1 phút
   } catch (error) {
     console.error("Lỗi khi đăng ký shipper:", error);
     res.status(500).json({ message: "Lỗi server khi đăng ký shipper", error });

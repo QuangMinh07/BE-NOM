@@ -157,6 +157,10 @@ const updateFoodAvailability = async (req, res) => {
 const deleteFoodItem = async (req, res) => {
   const { foodId } = req.params;
 
+  if (!foodId || foodId === "undefined") {
+    return res.status(400).json({ success: false, msg: "ID món ăn không hợp lệ." });
+  }
+
   try {
     const deletedFood = await Food.findByIdAndDelete(foodId);
 
