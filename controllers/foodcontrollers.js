@@ -215,6 +215,7 @@ const getAllFoods = async (req, res) => {
         price: food.price,
         description: food.description,
         store: food.store.storeName,
+        storeId: food.store._id,
         imageUrl: food.imageUrl,
         foodGroup: food.foodGroup.groupName,
         isAvailable: food.isAvailable,
