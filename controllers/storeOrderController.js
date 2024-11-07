@@ -213,7 +213,7 @@ const getAllOrders = async (req, res) => {
     const orders = await StoreOrder.find()
       .populate("user", "fullName") // Lấy tên người dùng
       .populate("store", "storeName imageURL") // Lấy tên cửa hàng và ảnh
-      .populate("foods", "foodName price imageUrl"); // Lấy tên và giá món ăn
+      .populate("foods", "foodName price imageUrl _id"); // Lấy tên và giá món ăn
 
     // Nếu không có đơn hàng
     if (orders.length === 0) {
@@ -233,6 +233,7 @@ const getAllOrders = async (req, res) => {
         imageURL: order.store.imageURL, // Đảm bảo lấy imageURL từ store
       },
       foods: order.foods.map((food) => ({
+        foodName: food._id,
         foodName: food.foodName,
         price: food.price,
         imageUrl: food.imageUrl,
