@@ -1,6 +1,7 @@
 const OrderCancellation = require("../models/OrderCancellation");
 const StoreOrder = require("../models/storeOrder");
 const User = require("../models/user");
+const PaymentTransaction = require("../models/PaymentTransaction");
 
 // Hàm để yêu cầu hủy đơn hàng
 const cancelOrder = async (req, res) => {
@@ -37,7 +38,17 @@ const cancelOrder = async (req, res) => {
 
     // Cập nhật trạng thái của đơn hàng thành "Cancelled"
     order.orderStatus = "Cancelled";
+    order.paymentStatus = "Failed"; // Cập nhật paymentStatus thành "Failed"
     await order.save(); // Lưu trạng thái đơn hàng
+
+    // Tìm và cập nhật transactionStatus của giao dịch liên quan đến đơn hàng
+    const transaction = await PaymentTransaction.findOne({ cart: order.cart });
+    if (transaction) {
+      transaction.transactionStatus = "Failed"; // Cập nhật transactionStatus thành "Failed"
+      await transaction.save();
+    } else {
+      console.log("Không tìm thấy giao dịch cho giỏ hàng:", order.cart);
+    }
 
     return res.status(200).json({ message: "Đã hủy đơn hàng thành công.", cancellationRequest });
   } catch (error) {
@@ -48,9 +59,7 @@ const cancelOrder = async (req, res) => {
 
 const getCancelledOrders = async (req, res) => {
   try {
-    const cancelledOrders = await OrderCancellation.find({ cancellationStatus: "Canceled" })
-      .populate("user", "fullName email")
-      .populate("order", "orderStatus orderDate items");
+    const cancelledOrders = await OrderCancellation.find({ cancellationStatus: "Canceled" }).populate("user", "fullName email").populate("order", "orderStatus orderDate items");
 
     if (!cancelledOrders.length) {
       return res.status(404).json({ message: "Không có đơn hàng đã hủy." });
