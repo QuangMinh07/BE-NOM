@@ -213,7 +213,7 @@ const getAllOrders = async (req, res) => {
     const orders = await StoreOrder.find()
       .populate("user", "fullName") // Lấy tên người dùng
       .populate("store", "storeName imageURL") // Lấy tên cửa hàng và ảnh
-      .populate("foods", "foodName price imageUrl _id"); // Lấy tên và giá món ăn
+      .populate("foods", "foodName price imageUrl _id quantity"); // Lấy tên và giá món ăn
 
     // Nếu không có đơn hàng
     if (orders.length === 0) {
@@ -237,8 +237,14 @@ const getAllOrders = async (req, res) => {
         foodName: food.foodName,
         price: food.price,
         imageUrl: food.imageUrl,
-        quantity: order.foods.find((f) => f._id.equals(food._id)).quantity, // Giả sử bạn lưu quantity
+        quantity: food.quantity, // Giả sử bạn lưu quantity
         userId: order.user._id, // Thêm userId cho mỗi món ăn
+      })),
+      cartSnapshotItems: order.cartSnapshot.items.map((item) => ({
+        foodName: item.foodName,
+        quantity: item.quantity, // Lấy quantity từ cartSnapshot.items
+        price: item.price,
+        foodId: item._id,
       })),
       totalAmount: order.totalAmount,
       orderDate: order.orderDate,
