@@ -238,6 +238,7 @@ const getAllOrders = async (req, res) => {
         price: food.price,
         imageUrl: food.imageUrl,
         quantity: order.foods.find((f) => f._id.equals(food._id)).quantity, // Giả sử bạn lưu quantity
+        userId: order.user._id, // Thêm userId cho mỗi món ăn
       })),
       totalAmount: order.totalAmount,
       orderDate: order.orderDate,
