@@ -233,7 +233,7 @@ const getAllOrders = async (req, res) => {
         imageURL: order.store.imageURL, // Đảm bảo lấy imageURL từ store
       },
       foods: order.foods.map((food) => ({
-        foodName: food._id,
+        foodId: food._id,
         foodName: food.foodName,
         price: food.price,
         imageUrl: food.imageUrl,
