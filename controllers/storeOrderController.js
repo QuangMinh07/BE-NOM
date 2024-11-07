@@ -344,6 +344,23 @@ const updateOrderStatus = async (req, res) => {
       // Xóa phòng chat dựa trên roomId (orderId của đơn hàng)
       await Chat.deleteOne({ roomId: orderId });
       console.log(`Phòng chat với roomId ${orderId} đã bị xóa.`);
+    } else if (nextStatus === "Cancelled") {
+      // Nếu trạng thái chuyển sang "Cancelled", cập nhật paymentStatus thành "Failed"
+      order.paymentStatus = "Failed";
+      console.log("paymentStatus đã được cập nhật thành 'Failed' do đơn hàng bị hủy.");
+
+      // Tìm và cập nhật transactionStatus của giao dịch tương ứng với đơn hàng
+      const transaction = await PaymentTransaction.findOne({ cart: order.cart });
+      if (transaction) {
+        transaction.transactionStatus = "Failed";
+        await transaction.save();
+      } else {
+        console.log("Không tìm thấy giao dịch cho giỏ hàng:", order.cart);
+      }
+
+      // Xóa phòng chat dựa trên roomId (orderId của đơn hàng)
+      await Chat.deleteOne({ roomId: orderId });
+      console.log(`Phòng chat với roomId ${orderId} đã bị xóa do đơn hàng bị hủy.`);
     }
 
     // Lưu đơn hàng đã cập nhật
