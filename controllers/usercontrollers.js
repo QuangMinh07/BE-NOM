@@ -541,6 +541,34 @@ const getProfile = async (req, res, next) => {
   }
 };
 
+const getProfileById = async (req, res, next) => {
+  try {
+    // Kiểm tra `ShipperInfo` để lấy `userId` liên quan nếu `shipperId` được sử dụng
+    const shipperInfo = await ShipperInfo.findById(req.params.id);
+
+    // Nếu không tìm thấy shipperInfo, trả về lỗi
+    if (!shipperInfo) {
+      return res.status(404).json({ success: false, message: "Thông tin shipper không tồn tại" });
+    }
+
+    // Sử dụng `userId` từ `shipperInfo` để tìm `User`
+    const user = await User.findById(shipperInfo.userId).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Người dùng không tồn tại" });
+    }
+
+    // Trả về thông tin người dùng và thông tin shipper
+    res.status(200).json({
+      success: true,
+      user,
+      shipperInfo,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const updateUser = async (req, res, next) => {
   const { phone, email, fullName, address } = req.body;
 
@@ -932,4 +960,5 @@ module.exports = {
   verifyPhoneOtp,
   resendVerificationCodeForPhone,
   sendverifyEmail,
+  getProfileById,
 };
