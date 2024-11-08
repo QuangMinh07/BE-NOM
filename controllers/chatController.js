@@ -1,6 +1,9 @@
 const { default: mongoose } = require("mongoose");
 const Chat = require("../models/chat");
 const Order = require("../models/storeOrder"); // Đảm bảo đã import model Order
+const ShipperInfo = require("../models/shipper");
+const User = require("../models/user");
+const PersonalInfo = require("../models/userPersonal"); // Đường dẫn tới modal Staff của bạn
 
 const getChatMessages = async (req, res) => {
   try {
@@ -104,27 +107,70 @@ const sendMessage = async (req, res) => {
 
 const getChatRooms = async (req, res) => {
   try {
-    const { userId, shipperId } = req.params; // Lấy userId hoặc shipperId từ URL parameters
+    const { userId } = req.params;
 
-    // Tạo điều kiện tìm kiếm dựa trên userId hoặc shipperId
-    let filter = {};
-    if (userId) filter.userId = userId;
-    if (shipperId) filter.shipperId = shipperId;
+    if (!userId) {
+      return res.status(400).json({ message: "Vui lòng cung cấp userId" });
+    }
 
-    // Tìm các phòng chat phù hợp với điều kiện
-    const chatRooms = await Chat.find(filter).select("roomId userId shipperId");
+    const filter = { userId };
+    const chatRooms = await Chat.find(filter).select("roomId userId shipperId messages createdAt updatedAt");
 
-    // Kiểm tra nếu không có phòng chat nào
     if (!chatRooms || chatRooms.length === 0) {
       return res.status(404).json({ message: "Không tìm thấy phòng chat" });
     }
 
-    // Trả về danh sách các phòng chat
-    res.status(200).json({ chatRooms });
+    const roomsWithShipperDetails = await Promise.all(
+      chatRooms.map(async (room) => {
+        try {
+          const shipperInfo = await ShipperInfo.findById(room.shipperId);
+          
+          if (shipperInfo) {
+            const user = await User.findById(shipperInfo.userId).select("fullName");
+
+            // Sử dụng userId để tìm PersonalInfo nếu không có personalInfoId
+            let profilePictureURL = "";
+            const personalInfo = await PersonalInfo.findOne({ userId: shipperInfo.userId }).select("profilePictureURL");
+
+            if (personalInfo) {
+              profilePictureURL = personalInfo.profilePictureURL || "Không tìm thấy ảnh đại diện";
+            } else {
+              console.warn(`Không tìm thấy PersonalInfo cho userId: ${shipperInfo.userId}`);
+              profilePictureURL = "Không tìm thấy ảnh đại diện";
+            }
+
+            return {
+              ...room.toObject(),
+              shipperFullName: user.fullName || "Không tìm thấy tên shipper",
+              profilePictureURL,
+              messages: room.messages, // Lấy danh sách tin nhắn của phòng chat
+            };
+          }
+
+          return {
+            ...room.toObject(),
+            shipperFullName: "Không tìm thấy tên shipper",
+            profilePictureURL: "Không tìm thấy ảnh đại diện",
+            messages: room.messages,
+          };
+        } catch (error) {
+          console.error(`Lỗi khi lấy thông tin shipper cho ${room.shipperId}:`, error);
+          return {
+            ...room.toObject(),
+            shipperFullName: "Không tìm thấy tên shipper",
+            profilePictureURL: "Không tìm thấy ảnh đại diện",
+            messages: room.messages,
+          };
+        }
+      })
+    );
+
+    res.status(200).json({ chatRooms: roomsWithShipperDetails });
   } catch (error) {
     console.error("Lỗi khi lấy danh sách phòng chat:", error);
     res.status(500).json({ error: "Không thể lấy danh sách phòng chat" });
   }
 };
+
 
 module.exports = { getChatMessages, createChatRoom, sendMessage, getChatRooms };
