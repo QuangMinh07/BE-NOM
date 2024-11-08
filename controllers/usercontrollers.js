@@ -543,16 +543,28 @@ const getProfile = async (req, res, next) => {
 
 const getProfileById = async (req, res, next) => {
   try {
-    // Kiểm tra `ShipperInfo` để lấy `userId` liên quan nếu `shipperId` được sử dụng
-    const shipperInfo = await ShipperInfo.findById(req.params.id);
-
-    // Nếu không tìm thấy shipperInfo, trả về lỗi
-    if (!shipperInfo) {
-      return res.status(404).json({ success: false, message: "Thông tin shipper không tồn tại" });
+    // Thử tìm kiếm trực tiếp người dùng trong bảng `User`
+    let user = await User.findById(req.params.id).select("-password");
+    
+    // Nếu tìm thấy người dùng, trả về ngay
+    if (user) {
+      const shipperInfo = await ShipperInfo.findOne({ userId: user._id });
+      return res.status(200).json({
+        success: true,
+        user,
+        shipperInfo: shipperInfo || null, // Nếu không có shipperInfo, trả về null
+      });
     }
 
-    // Sử dụng `userId` từ `shipperInfo` để tìm `User`
-    const user = await User.findById(shipperInfo.userId).select("-password");
+    // Nếu không tìm thấy người dùng, tìm `ShipperInfo` bằng `shipperId`
+    const shipperInfo = await ShipperInfo.findById(req.params.id);
+    
+    if (!shipperInfo) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy thông tin shipper hoặc người dùng" });
+    }
+
+    // Sử dụng `userId` từ `shipperInfo` để lấy thông tin `User`
+    user = await User.findById(shipperInfo.userId).select("-password");
 
     if (!user) {
       return res.status(404).json({ success: false, message: "Người dùng không tồn tại" });
@@ -568,6 +580,7 @@ const getProfileById = async (req, res, next) => {
     next(error);
   }
 };
+
 
 const updateUser = async (req, res, next) => {
   const { phone, email, fullName, address } = req.body;
