@@ -1,6 +1,7 @@
 const Store = require("../models/store");
 const User = require("../models/user"); // Đảm bảo rằng bạn có mô hình User
 const moment = require("moment-timezone");
+const Food = require("../models/food");
 
 // Hàm lấy thông tin cửa hàng theo userId từ query parameters
 const getStoreByUser = async (req, res) => {
@@ -437,6 +438,111 @@ const getAllStores = async (req, res) => {
   }
 };
 
+const searchStores = async (req, res) => {
+  try {
+    const query = {};
+
+    // Lấy các tham số tìm kiếm từ query
+    const { storeName, storeAddress, owner, foodType, isOpen } = req.query;
+
+    // Nếu có storeName trong query, thêm điều kiện tìm kiếm cho storeName
+    if (storeName) {
+      query.storeName = { $regex: storeName, $options: "i" }; // Tìm kiếm không phân biệt chữ hoa chữ thường
+    }
+
+    // Nếu có storeAddress trong query, thêm điều kiện tìm kiếm cho storeAddress
+    if (storeAddress) {
+      query.storeAddress = { $regex: storeAddress, $options: "i" };
+    }
+
+    // Nếu có owner (userId) trong query, thêm điều kiện tìm kiếm cho owner
+    if (owner) {
+      query.owner = owner;
+    }
+
+    // Nếu có foodType trong query, thêm điều kiện tìm kiếm cho foodType
+    if (foodType) {
+      query.foodType = { $regex: foodType, $options: "i" };
+    }
+
+    // Nếu có isOpen trong query, thêm điều kiện tìm kiếm cho isOpen
+    if (isOpen !== undefined) {
+      query.isOpen = isOpen === "true";
+    }
+
+    // Tìm kiếm cửa hàng theo các điều kiện trong query
+    const stores = await Store.find(query).populate("owner", "userName email");
+
+    // Thay đổi phản hồi khi không có kết quả thay vì trả về 404
+    if (!stores || stores.length === 0) {
+      return res.status(200).json({
+        success: true,
+        msg: "Không có cửa hàng nào khớp với điều kiện tìm kiếm",
+        data: [], // Trả về mảng rỗng thay vì lỗi
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      msg: "Tìm kiếm cửa hàng thành công",
+      data: stores,
+    });
+  } catch (error) {
+    console.error("Lỗi khi tìm kiếm cửa hàng:", error.message);
+    res.status(500).json({
+      success: false,
+      msg: "Lỗi máy chủ, không thể tìm kiếm cửa hàng",
+      error: error.message,
+    });
+  }
+};
+
+const searchStoresAndFoods = async (req, res) => {
+  try {
+    const { searchTerm } = req.query;
+
+    if (!searchTerm) {
+      return res.status(400).json({
+        success: false,
+        msg: "Vui lòng cung cấp từ khóa tìm kiếm",
+      });
+    }
+
+    // Tìm kiếm trong bảng Store
+    const storeQuery = { storeName: { $regex: searchTerm, $options: "i" } };
+    const stores = await Store.find(storeQuery).populate("owner", "userName email");
+
+    // Tìm kiếm trong bảng Food
+    const foodQuery = { foodName: { $regex: searchTerm, $options: "i" } };
+    const foods = await Food.find(foodQuery).populate("store", "storeName storeAddress").select("foodName price description imageUrl isAvailable");
+
+    // Kiểm tra nếu không có kết quả tìm kiếm
+    if (stores.length === 0 && foods.length === 0) {
+      return res.status(200).json({
+        success: true,
+        msg: "Không có cửa hàng hoặc món ăn nào khớp với điều kiện tìm kiếm",
+        data: { stores: [], foods: [] },
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      msg: "Tìm kiếm thành công",
+      data: {
+        stores,
+        foods,
+      },
+    });
+  } catch (error) {
+    console.error("Lỗi khi tìm kiếm cửa hàng và món ăn:", error.message);
+    res.status(500).json({
+      success: false,
+      msg: "Lỗi máy chủ, không thể tìm kiếm cửa hàng và món ăn",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getStoreByUser,
   updateStoreById,
@@ -446,4 +552,6 @@ module.exports = {
   getStoreById,
   getAllStores,
   checkStoreOpen,
+  searchStores,
+  searchStoresAndFoods,
 };
