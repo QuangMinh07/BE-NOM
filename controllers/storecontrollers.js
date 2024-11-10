@@ -6,16 +6,26 @@ const Food = require("../models/food");
 // Hàm lấy thông tin cửa hàng theo userId từ query parameters
 const getStoreByUser = async (req, res) => {
   try {
-    const { userId } = req.params; // Lấy userId từ params
+    const { userId } = req.params;
+    console.log("Received userId:", userId);
 
     if (!userId) {
       return res.status(400).json({ success: false, message: "Thiếu userId" });
     }
 
-    // Tìm cửa hàng theo userId
-    const store = await Store.findOne({ owner: userId }).populate("owner", "userName email");
+    // Lấy user từ cơ sở dữ liệu để kiểm tra `storeIds`
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy người dùng" });
+    }
+
+    // Tìm cửa hàng bằng cách kiểm tra `storeIds`
+    const store = await Store.findOne({
+      _id: { $in: user.storeIds },
+    }).populate("owner", "userName email");
 
     if (!store) {
+      console.log("Không tìm thấy cửa hàng cho userId:", userId);
       return res.status(404).json({ success: false, message: "Không tìm thấy cửa hàng" });
     }
 
