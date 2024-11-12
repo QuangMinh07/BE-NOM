@@ -3,7 +3,6 @@ const cors = require("cors");
 const express = require("express");
 const dbConnect = require("./config/dbConnect");
 const cookieParser = require("cookie-parser");
-const path = require("path");
 const bodyParser = require("body-parser");
 const { globalErrorHandler } = require("./utils/errorHandler"); // Import globalErrorHandler từ errorHandler.js
 // const passport = require('passport');
