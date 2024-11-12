@@ -11,7 +11,7 @@ const { globalErrorHandler } = require("./utils/errorHandler"); // Import global
 const http = require("http");
 const socket = require("./socket");
 const app = express();
-
+const path = require('path');
 const userRoute = require("./routes/userroutes");
 const userPersonalRoute = require("./routes/userPersonalroutes");
 const adminRoute = require("./routes/adminroutes");
@@ -62,13 +62,12 @@ app.use("/v1/orderReview", orderReviewRoute);
 
 // app.use(bodyParser.json({ limit: "200mb" })); // Để xử lý JSON lớn, bao gồm dữ liệu Base64
 
-// // Xử lý tất cả các request không khớp với các route khác và trả về file index.html cho client-side routing
-// app.get("*", (req, res) => {
-//   res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
-// });
+// Xử lý tất cả các request không khớp với các route khác và trả về file index.html cho client-side routing
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
+});
 
 
-const path = require('path');
 app.use(express.static(path.join(__dirname, 'build')));
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'build', 'index.html'));
