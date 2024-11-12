@@ -17,4 +17,4 @@ COPY . .
 EXPOSE 5000
 
 # Chạy ứng dụng
-CMD ["node", "server.js"]
+CMD ["npm", "start"]
