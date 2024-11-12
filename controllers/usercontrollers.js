@@ -314,6 +314,12 @@ const loginUser = async (req, res, next) => {
       return next(errorHandler(400, "Tài khoản chưa được xác thực. Vui lòng kiểm tra email của bạn để xác thực."));
     }
 
+    // Lưu `expoPushToken` vào tài khoản khách hàng
+    // if (expoPushToken) {
+    //   user.expoPushToken = expoPushToken; // Cập nhật expoPushToken
+    //   await user.save();
+    // }
+
     // Nếu người dùng là "staff", kiểm tra trạng thái "isActive" và lấy thông tin storeId
     let isActive = true; // Mặc định là true nếu không phải staff
     let storeId = null; // Lưu storeId nếu là staff
@@ -386,6 +392,7 @@ const loginUser = async (req, res, next) => {
         storeId, // Trả về storeId nếu là nhân viên
         storeIds, // Trả về mảng storeIds nếu là staff hoặc seller
         isOnline: user.isOnline, // Trả về trạng thái online
+        // expoPushToken: user.expoPushToken, // Trả về expoPushToken
       },
     });
   } catch (error) {
@@ -545,7 +552,7 @@ const getProfileById = async (req, res, next) => {
   try {
     // Thử tìm kiếm trực tiếp người dùng trong bảng `User`
     let user = await User.findById(req.params.id).select("-password");
-    
+
     // Nếu tìm thấy người dùng, trả về ngay
     if (user) {
       const shipperInfo = await ShipperInfo.findOne({ userId: user._id });
@@ -558,7 +565,7 @@ const getProfileById = async (req, res, next) => {
 
     // Nếu không tìm thấy người dùng, tìm `ShipperInfo` bằng `shipperId`
     const shipperInfo = await ShipperInfo.findById(req.params.id);
-    
+
     if (!shipperInfo) {
       return res.status(404).json({ success: false, message: "Không tìm thấy thông tin shipper hoặc người dùng" });
     }
@@ -580,7 +587,6 @@ const getProfileById = async (req, res, next) => {
     next(error);
   }
 };
-
 
 const updateUser = async (req, res, next) => {
   const { phone, email, fullName, address } = req.body;

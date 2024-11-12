@@ -280,6 +280,11 @@ const updatePaymentMethod = async (req, res) => {
   }
 };
 
+const { Expo } = require("expo-server-sdk");
+
+// Khởi tạo một thể hiện của Expo SDK
+let expo = new Expo();
+
 const updateOrderStatus = async (req, res) => {
   const { orderId } = req.body; // Lấy orderId từ body của request
   const { storeId, userId } = req.params; // Lấy storeId và userId từ params của URL
@@ -348,6 +353,45 @@ const updateOrderStatus = async (req, res) => {
 
     // Lưu đơn hàng đã cập nhật
     await order.save();
+
+    // Gửi thông báo cho tài khoản khách hàng
+    const customerId = order.user; // Lấy userId của khách hàng từ đơn hàng
+    const customer = await User.findById(customerId);
+
+    if (customer && customer.expoPushToken) {
+      // Tạo thông báo
+      let messages = [];
+      if (Expo.isExpoPushToken(customer.expoPushToken)) {
+        messages.push({
+          to: customer.expoPushToken,
+          sound: "default",
+          body: `Trạng thái đơn hàng của bạn đã được cập nhật sang ${nextStatus}.`,
+          data: { orderId: order._id, orderStatus: nextStatus },
+        });
+
+        // Log thông báo sắp gửi
+        console.log("Sending push notification to:", customer.expoPushToken);
+      }
+
+      // Gửi thông báo
+      let chunks = expo.chunkPushNotifications(messages);
+      let tickets = [];
+      for (let chunk of chunks) {
+        try {
+          let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
+          tickets.push(...ticketChunk);
+
+          // Log thông báo đã gửi thành công
+          console.log("Push notification sent successfully:", ticketChunk);
+        } catch (error) {
+          // Log lỗi nếu có
+          console.error("Error sending push notification:", error);
+        }
+      }
+    } else {
+      // Log khi không tìm thấy expoPushToken của người dùng
+      console.log(`No expoPushToken found for user: ${customerId}`);
+    }
 
     return res.status(200).json({
       message: `Trạng thái đơn hàng đã được cập nhật sang ${nextStatus} ${user.roleId === "shipper" ? "và thêm shipper vào đơn hàng" : ""}`,

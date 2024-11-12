@@ -131,6 +131,10 @@ const UserSchema = new mongoose.Schema(
       type: Date,
       default: null, // Đặt là null khi không có yêu cầu cần duyệt
     },
+    // expoPushToken: {
+    //   type: String,
+    //   default: "", // Khởi tạo với giá trị rỗng
+    // },
   },
   {
     validateBeforeSave: true,
