@@ -62,10 +62,10 @@ app.use("/v1/orderReview", orderReviewRoute);
 
 // app.use(bodyParser.json({ limit: "200mb" })); // Để xử lý JSON lớn, bao gồm dữ liệu Base64
 
-// Xử lý tất cả các request không khớp với các route khác và trả về file index.html cho client-side routing
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
-});
+// // Xử lý tất cả các request không khớp với các route khác và trả về file index.html cho client-side routing
+// app.get("*", (req, res) => {
+//   res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
+// });
 
 
 app.use(express.static(path.join(__dirname, 'build')));
