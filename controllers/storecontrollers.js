@@ -457,7 +457,7 @@ const searchStores = async (req, res) => {
 
     // Nếu có storeName trong query, thêm điều kiện tìm kiếm cho storeName
     if (storeName) {
-      query.storeName = { $regex: storeName, $options: "i" }; // Tìm kiếm không phân biệt chữ hoa chữ thường
+      query.storeName = { $regex: `^${storeName}`, $options: "i" }; // Tìm kiếm không phân biệt chữ hoa chữ thường
     }
 
     // Nếu có storeAddress trong query, thêm điều kiện tìm kiếm cho storeAddress
@@ -553,6 +553,47 @@ const searchStoresAndFoods = async (req, res) => {
   }
 };
 
+// API lấy cửa hàng theo foodType
+const getStoresByFoodType = async (req, res) => {
+  try {
+    const { foodType } = req.params; // Lấy foodType từ URL params
+    console.log("Received foodType:", foodType); // Log để kiểm tra giá trị
+
+    if (!foodType) {
+      return res.status(400).json({
+        success: false,
+        msg: "Vui lòng cung cấp foodType",
+      });
+    }
+
+    // Kiểm tra nếu foodType có dấu cách thừa
+    const trimmedFoodType = foodType.trim();
+
+    const stores = await Store.find({ foodType: trimmedFoodType }).populate("owner", "userName email");
+    console.log("Stores found:", stores); // Log kết quả tìm kiếm
+
+    if (!stores || stores.length === 0) {
+      return res.status(404).json({
+        success: false,
+        msg: "Không có cửa hàng nào với loại món ăn này",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      msg: "Lấy danh sách cửa hàng thành công",
+      data: stores,
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy cửa hàng theo loại món ăn:", error.message);
+    res.status(500).json({
+      success: false,
+      msg: "Lỗi máy chủ, không thể lấy danh sách cửa hàng",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getStoreByUser,
   updateStoreById,
@@ -564,4 +605,5 @@ module.exports = {
   checkStoreOpen,
   searchStores,
   searchStoresAndFoods,
+  getStoresByFoodType,
 };

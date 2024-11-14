@@ -60,6 +60,18 @@ const FoodSchema = new mongoose.Schema({
       ],
     },
   ],
+  comboGroups: [
+    {
+      group: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "FoodGroup", // Tham chiếu đến các nhóm món
+      },
+      quantity: {
+        type: Number,
+        default: 1, // Số lượng của nhóm món trong combo
+      },
+    },
+  ],
   createdAt: {
     type: Date,
     default: Date.now,

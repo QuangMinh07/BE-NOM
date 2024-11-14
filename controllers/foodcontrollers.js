@@ -79,6 +79,81 @@ const addFoodItem = async (req, res) => {
   }
 };
 
+const updateFoodItem = async (req, res) => {
+  const { foodId } = req.params;
+  const { foodName, price, description, foodGroup, isAvailable, isForSale, sellingTime, comboGroups } = req.body;
+
+  try {
+    // Kiểm tra món ăn có tồn tại không
+    const food = await Food.findById(foodId);
+    if (!food) {
+      return res.status(404).json({ message: "Món ăn không tồn tại" });
+    }
+
+    // Nếu có ảnh mới, upload ảnh lên Cloudinary
+    let imageUrl = food.imageUrl; // Sử dụng URL ảnh hiện tại nếu không có ảnh mới
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path);
+      imageUrl = result.secure_url;
+    }
+
+    // Chuyển đổi sellingTime từ frontend sang định dạng MongoDB
+    const formattedSellingTime = JSON.parse(sellingTime).map((dayData) => {
+      if (dayData.is24h) {
+        return {
+          day: dayData.day,
+          is24h: true,
+          timeSlots: [{ open: "00:00", close: "23:59" }],
+        };
+      } else {
+        return {
+          day: dayData.day,
+          is24h: false,
+          timeSlots: dayData.timeSlots.map((slot) => ({
+            open: slot.startTime,
+            close: slot.endTime,
+          })),
+        };
+      }
+    });
+
+    // Cập nhật các trường của món ăn
+    food.foodName = foodName || food.foodName;
+    food.price = price || food.price;
+    food.description = description || food.description;
+    food.imageUrl = imageUrl;
+    food.foodGroup = foodGroup || food.foodGroup;
+    food.isAvailable = typeof isAvailable === "boolean" ? isAvailable : food.isAvailable;
+    food.isForSale = typeof isForSale === "boolean" ? isForSale : food.isForSale;
+    food.sellingTime = formattedSellingTime;
+
+    // Cập nhật comboGroups nếu có
+    if (comboGroups && Array.isArray(comboGroups)) {
+      food.comboGroups = comboGroups.map((group) => ({
+        group: group.group,
+        quantity: group.quantity || 1,
+      }));
+    }
+
+    // Lưu món ăn đã cập nhật vào MongoDB
+    await food.save();
+
+    // Cập nhật danh sách món ăn trong FoodGroup nếu cần
+    if (foodGroup) {
+      const foodGroupRecord = await FoodGroup.findById(foodGroup);
+      if (foodGroupRecord && !foodGroupRecord.foods.includes(food._id)) {
+        foodGroupRecord.foods.push(food._id);
+        await foodGroupRecord.save();
+      }
+    }
+
+    return res.status(200).json({ message: "Cập nhật món ăn thành công", food });
+  } catch (error) {
+    console.error("Lỗi server:", error);
+    return res.status(500).json({ message: "Lỗi server khi cập nhật món ăn" });
+  }
+};
+
 // API lấy thông tin thức ăn dựa trên foodId
 const getFoodById = async (req, res) => {
   const { foodId } = req.params;
@@ -240,4 +315,5 @@ module.exports = {
   updateFoodAvailability,
   deleteFoodItem,
   getAllFoods,
+  updateFoodItem,
 };
