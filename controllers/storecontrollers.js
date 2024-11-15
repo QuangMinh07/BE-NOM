@@ -319,9 +319,8 @@ const addSellingTimeToStore = async (req, res) => {
       }
     });
 
-    // Thêm thời gian bán hàng mới vào store
-    console.log("Thêm thời gian bán hàng:", formattedSellingTime);
-    store.sellingTime = [...store.sellingTime, ...formattedSellingTime];
+    // Ghi đè thời gian bán hàng cũ với dữ liệu mới
+    store.sellingTime = formattedSellingTime;
     store.updatedAt = Date.now();
 
     // Kiểm tra trạng thái cửa hàng có đang mở hay không
