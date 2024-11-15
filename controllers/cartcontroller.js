@@ -1,5 +1,6 @@
 const Cart = require("../models/cart");
 const Food = require("../models/food");
+const Store = require("../models/store");
 
 // Hàm thêm món ăn vào giỏ hàng mà không yêu cầu địa chỉ giao hàng
 const addToCart = async (req, res) => {
@@ -96,48 +97,56 @@ const getCart = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // Tìm giỏ hàng của người dùng và populate thông tin món ăn từ mô hình Food
-    const cart = await Cart.findOne({ user: userId }).populate({
-      path: "items.food", // Tham chiếu đến mô hình Food dựa trên foodId
-      select: "foodName price", // Chỉ lấy các trường cần thiết là foodName và price
-    });
+    // Tìm tất cả giỏ hàng của người dùng và populate thông tin món ăn từ mô hình Food và thông tin cửa hàng từ mô hình Store trong items
+    const carts = await Cart.find({ user: userId })
+      .populate({
+        path: "items.food", // Tham chiếu đến mô hình Food dựa trên foodId
+        select: "foodName price imageUrl", // Lấy thêm trường imageUrl của món ăn
+      })
+      .populate({
+        path: "items.store", // Tham chiếu đến mô hình Store dựa trên storeId trong mỗi item
+        select: "storeName _id", // Chỉ lấy trường storeName
+      });
 
-    console.log("Cart Data:", cart); // Log dữ liệu giỏ hàng để kiểm tra
+    console.log("Cart Data:", carts); // Log dữ liệu giỏ hàng để kiểm tra
 
-    if (!cart || cart.items.length === 0) {
+    if (!carts || carts.length === 0) {
       return res.status(404).json({ message: "Giỏ hàng rỗng hoặc không tồn tại" });
     }
 
-    // Tạo phản hồi chứa thông tin giỏ hàng
-    const cartDetails = cart.items
-      .map((item) => {
-        // Kiểm tra nếu món ăn tồn tại trong dữ liệu đã populate
-        if (item.food) {
-          return {
-            foodId: item.food._id, // Trả về ID món ăn
-            foodName: item.food.foodName, // Tên món ăn từ Food model
-            price: item.food.price, // Giá món ăn từ Food model
-            quantity: item.quantity, // Số lượng món ăn trong giỏ
-            totalItemPrice: item.quantity * item.food.price, // Tính tổng giá của món ăn trong giỏ
-          };
-        }
-        console.warn("Không tìm thấy món ăn cho ID:", item.food); // Cảnh báo nếu không có thông tin món ăn
-        return null; // Trả về null nếu không có thông tin món ăn
-      })
-      .filter((item) => item !== null); // Lọc các phần tử null ra khỏi mảng
+    // Tạo phản hồi chứa thông tin giỏ hàng cho từng giỏ hàng của người dùng
+    const cartDetails = carts.map((cart) => ({
+      _id: cart._id, // ID của giỏ hàng
+      totalPrice: cart.totalPrice, // Tổng tiền của giỏ hàng
+      deliveryAddress: cart.deliveryAddress, // Địa chỉ giao hàng
+      receiverName: cart.receiverName, // Tên người nhận
+      receiverPhone: cart.receiverPhone, // Số điện thoại người nhận
+      description: cart.description, // Mô tả thêm nếu có
+      items: cart.items
+        .map((item) => {
+          // Kiểm tra nếu món ăn và cửa hàng tồn tại trong dữ liệu đã populate
+          if (item.food && item.store) {
+            return {
+              foodId: item.food._id, // Trả về ID món ăn
+              foodName: item.food.foodName, // Tên món ăn từ Food model
+              price: item.food.price, // Giá món ăn từ Food model
+              quantity: item.quantity, // Số lượng món ăn trong giỏ
+              totalItemPrice: item.quantity * item.food.price, // Tính tổng giá của món ăn trong giỏ
+              imageUrl: item.food.imageUrl, // Đường dẫn ảnh món ăn
+              storeId: item.store._id, // ID của cửa hàng
+              storeName: item.store.storeName, // Tên cửa hàng từ Store model
+            };
+          }
+          console.warn("Không tìm thấy món ăn hoặc cửa hàng cho ID:", item.food, item.store); // Cảnh báo nếu không có thông tin món ăn hoặc cửa hàng
+          return null; // Trả về null nếu không có thông tin món ăn hoặc cửa hàng
+        })
+        .filter((item) => item !== null), // Lọc các phần tử null ra khỏi mảng
+    }));
 
-    // Gửi phản hồi chứa thông tin giỏ hàng
+    // Gửi phản hồi chứa danh sách các giỏ hàng
     res.status(200).json({
       message: "Lấy thông tin giỏ hàng thành công!",
-      cart: {
-        _id: cart._id, // Thêm _id của giỏ hàng
-        totalPrice: cart.totalPrice, // Tổng tiền của giỏ hàng
-        items: cartDetails, // Danh sách các món ăn
-        deliveryAddress: cart.deliveryAddress, // Địa chỉ giao hàng
-        receiverName: cart.receiverName, // Tên người nhận
-        receiverPhone: cart.receiverPhone, // Số điện thoại người nhận
-        description: cart.description, // Mô tả thêm nếu có
-      },
+      carts: cartDetails,
     });
   } catch (error) {
     console.error("Lỗi khi lấy thông tin giỏ hàng:", error);
@@ -270,6 +279,24 @@ const getCartByStoreId = async (req, res) => {
   }
 };
 
+const deleteCartById = async (req, res) => {
+  try {
+    const { cartId } = req.params;
+
+    // Tìm và xóa giỏ hàng theo cartId
+    const cart = await Cart.findByIdAndDelete(cartId);
+
+    if (!cart) {
+      return res.status(404).json({ message: "Giỏ hàng không tồn tại" });
+    }
+
+    res.status(200).json({ message: "Xóa giỏ hàng thành công!", cart });
+  } catch (error) {
+    console.error("Lỗi khi xóa giỏ hàng:", error);
+    res.status(500).json({ message: "Lỗi khi xóa giỏ hàng", error });
+  }
+};
+
 module.exports = {
   addToCart,
   checkout,
@@ -277,4 +304,5 @@ module.exports = {
   updateShippingInfo,
   removeFromCart,
   getCartByStoreId,
+  deleteCartById
 };
