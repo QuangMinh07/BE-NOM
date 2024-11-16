@@ -297,6 +297,63 @@ const deleteCartById = async (req, res) => {
   }
 };
 
+const updateCartItem = async (req, res) => {
+  try {
+    const { userId, foodId } = req.params; // Lấy userId và foodId từ params
+    const { quantity } = req.body; // Lấy số lượng mới từ body
+
+    console.log("Updating cart item on server:", { userId, foodId, quantity });
+
+    if (!userId || !foodId || quantity <= 0) {
+      return res.status(400).json({ error: "Thông tin không hợp lệ." });
+    }
+
+    // Tìm giỏ hàng của người dùng và populate items.food
+    const cart = await Cart.findOne({ user: userId }).populate("items.food");
+
+    if (!cart) {
+      console.log("Cart not found for user:", userId);
+      return res.status(404).json({ error: "Giỏ hàng không tồn tại." });
+    }
+
+    console.log("Cart items before update:", cart.items);
+
+    // Kiểm tra xem món ăn có trong giỏ hàng hay không
+    const itemIndex = cart.items.findIndex((item) => item.food._id.toString() === foodId);
+
+    if (itemIndex === -1) {
+      console.log("Food ID not found in cart items:", foodId);
+      return res.status(404).json({ error: "Món ăn không có trong giỏ hàng." });
+    }
+
+    // Cập nhật số lượng và giá
+    const item = cart.items[itemIndex];
+    item.quantity = quantity;
+    item.price = quantity * item.food.price;
+
+    console.log("Updated item:", item);
+
+    // Tính lại tổng giá trị giỏ hàng
+    cart.totalPrice = cart.items.reduce((total, item) => total + item.price, 0);
+
+    console.log("Updated total price:", cart.totalPrice);
+
+    // Cập nhật thời gian sửa đổi
+    cart.updatedAt = Date.now();
+
+    // Lưu lại giỏ hàng sau khi cập nhật
+    await cart.save();
+
+    res.status(200).json({
+      message: "Cập nhật số lượng món ăn thành công.",
+      cart,
+    });
+  } catch (error) {
+    console.error("Lỗi khi cập nhật món ăn trong giỏ hàng:", error);
+    res.status(500).json({ error: "Lỗi khi cập nhật món ăn trong giỏ hàng." });
+  }
+};
+
 module.exports = {
   addToCart,
   checkout,
@@ -304,5 +361,6 @@ module.exports = {
   updateShippingInfo,
   removeFromCart,
   getCartByStoreId,
-  deleteCartById
+  deleteCartById,
+  updateCartItem,
 };

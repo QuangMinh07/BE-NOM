@@ -75,6 +75,7 @@ const storeOrderSchema = new Schema({
       required: true,
     },
   ],
+  useLoyaltyPoints: { type: Boolean, default: false },
 });
 
 // Phương thức cập nhật phương thức thanh toán và tạo PaymentTransaction

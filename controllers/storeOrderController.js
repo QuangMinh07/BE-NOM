@@ -9,11 +9,33 @@ const { cancelOrder } = require("../controllers/OrderCancellationController"); /
 const createOrderFromCart = async (req, res) => {
   try {
     const { cartId } = req.params; // Lấy cartId từ params
+    const { useLoyaltyPoints } = req.body; // Lấy trạng thái sử dụng điểm tích lũy từ body
+    console.log("Received useLoyaltyPoints:", useLoyaltyPoints); // Log giá trị nhận được
 
     // Tìm giỏ hàng theo cartId và populate thông tin món ăn
     const cart = await Cart.findById(cartId).populate("items.food");
     if (!cart) {
       return res.status(404).json({ error: "Giỏ hàng không tồn tại." });
+    }
+
+    // Kiểm tra thông tin người dùng
+    const user = await User.findById(cart.user);
+    if (!user) {
+      return res.status(404).json({ error: "Người dùng không tồn tại." });
+    }
+
+    let discount = 0; // Số tiền giảm giá (nếu sử dụng điểm tích lũy)
+
+    if (useLoyaltyPoints) {
+      // Kiểm tra nếu người dùng có đủ điểm tích lũy
+      if (user.loyaltyPoints <= 0) {
+        return res.status(400).json({ error: "Bạn không có điểm tích lũy để sử dụng." });
+      }
+
+      // Tính toán số điểm tích lũy được sử dụng, không vượt quá giá trị đơn hàng
+      discount = Math.min(user.loyaltyPoints, cart.totalPrice); // Giảm tối đa bằng giá trị đơn hàng
+      user.loyaltyPoints -= discount; // Trừ toàn bộ điểm đã sử dụng
+      await user.save(); // Lưu lại điểm tích lũy đã cập nhật
     }
 
     // Kiểm tra nếu phương thức thanh toán có trong giỏ hàng
@@ -39,6 +61,9 @@ const createOrderFromCart = async (req, res) => {
       })),
     };
 
+    // Cập nhật totalAmount sau khi áp dụng discount
+    const totalAmount = cart.totalPrice - discount;
+
     // Tạo đơn hàng mới từ thông tin giỏ hàng, bao gồm snapshot
     const newOrder = new StoreOrder({
       store: cart.items[0].store, // Giả sử tất cả món thuộc cùng một cửa hàng
@@ -46,7 +71,7 @@ const createOrderFromCart = async (req, res) => {
       cart: cart._id,
       cartSnapshot, // Lưu snapshot của giỏ hàng
       foods: cart.items.map((item) => item.food._id), // Tham chiếu đến các món ăn
-      totalAmount: cart.totalPrice, // Tổng số tiền từ giỏ hàng
+      totalAmount: totalAmount, // Tổng số tiền từ giỏ hàng
       deliveryAddress: cart.deliveryAddress, // Địa chỉ lấy từ giỏ hàng
       receiverName: cart.receiverName, // Tên người nhận lấy từ giỏ hàng
       receiverPhone: cart.receiverPhone, // Số điện thoại người nhận lấy từ giỏ hàng
@@ -54,6 +79,7 @@ const createOrderFromCart = async (req, res) => {
       orderStatus: "Pending", // Trạng thái đơn hàng ban đầu là "Pending"
       paymentStatus: "Pending", // Trạng thái thanh toán ban đầu là "Pending"
       paymentMethod: paymentMethod, // Thêm phương thức thanh toán
+      useLoyaltyPoints: useLoyaltyPoints || false, // Lưu trạng thái sử dụng điểm tích lũy
     });
 
     // Lưu đơn hàng vào cơ sở dữ liệu
@@ -108,7 +134,7 @@ const createOrderFromCart = async (req, res) => {
           }
         );
       }
-    }, 1 * 60 * 1000); // Hủy sau 1 phút
+    }, 5 * 60 * 1000); // Hủy sau 1 phút
   } catch (error) {
     console.error("Lỗi khi tạo đơn hàng từ giỏ hàng:", error);
     res.status(500).json({ error: "Lỗi khi tạo đơn hàng." });
@@ -344,6 +370,17 @@ const updateOrderStatus = async (req, res) => {
         await transaction.save();
       } else {
         console.log("Không tìm thấy giao dịch cho giỏ hàng:", order.cart);
+      }
+
+      // Cộng điểm loyaltyPoints cho khách hàng
+      const customerId = order.user; // Lấy userId của khách hàng từ đơn hàng
+      const customer = await User.findById(customerId);
+      if (customer) {
+        customer.loyaltyPoints += 100; // Cộng 100 điểm
+        await customer.save(); // Lưu cập nhật vào MongoDB
+        console.log(`LoyaltyPoints của user ${customerId} đã tăng lên ${customer.loyaltyPoints}`);
+      } else {
+        console.log("Không tìm thấy khách hàng để cộng điểm loyaltyPoints");
       }
 
       // Xóa phòng chat dựa trên roomId (orderId của đơn hàng)

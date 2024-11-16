@@ -1,5 +1,5 @@
 const express = require("express");
-const { addToCart, checkout, getCart, updateShippingInfo, removeFromCart, getCartByStoreId, deleteCartById } = require("../controllers/cartcontroller");
+const { addToCart, checkout, getCart, updateShippingInfo, removeFromCart, updateCartItem, getCartByStoreId, deleteCartById } = require("../controllers/cartcontroller");
 const { authenticateToken } = require("../middlewares/authMiddleware");
 
 const router = express.Router();
@@ -12,5 +12,6 @@ router.put("/update/:userId/:storeId", authenticateToken, updateShippingInfo);
 router.delete("/remove/:userId/:foodId", authenticateToken, removeFromCart); // API xóa món ăn
 router.get("/getcart/:userId/:storeId", authenticateToken, getCartByStoreId);
 router.delete("/delete-cart/:cartId", authenticateToken, deleteCartById); // API xóa món ăn
+router.put("/update-item/:userId/:foodId", authenticateToken, updateCartItem);
 
 module.exports = router;

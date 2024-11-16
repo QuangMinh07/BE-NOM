@@ -81,7 +81,7 @@ const addFoodItem = async (req, res) => {
 
 const updateFoodItem = async (req, res) => {
   const { foodId } = req.params;
-  const { foodName, price, description, foodGroup, isAvailable, isForSale, sellingTime, comboGroups } = req.body;
+  const { foodName, price, description, foodGroup, isAvailable, sellingTime } = req.body;
 
   try {
     // Kiểm tra món ăn có tồn tại không
@@ -124,24 +124,19 @@ const updateFoodItem = async (req, res) => {
     food.imageUrl = imageUrl;
     food.foodGroup = foodGroup || food.foodGroup;
     food.isAvailable = typeof isAvailable === "boolean" ? isAvailable : food.isAvailable;
-    food.isForSale = typeof isForSale === "boolean" ? isForSale : food.isForSale;
     food.sellingTime = formattedSellingTime;
-
-    // Cập nhật comboGroups nếu có
-    if (comboGroups && Array.isArray(comboGroups)) {
-      food.comboGroups = comboGroups.map((group) => ({
-        group: group.group,
-        quantity: group.quantity || 1,
-      }));
-    }
 
     // Lưu món ăn đã cập nhật vào MongoDB
     await food.save();
 
-    // Cập nhật danh sách món ăn trong FoodGroup nếu cần
-    if (foodGroup) {
-      const foodGroupRecord = await FoodGroup.findById(foodGroup);
-      if (foodGroupRecord && !foodGroupRecord.foods.includes(food._id)) {
+    // Cập nhật danh sách món ăn trong FoodGroup
+    const foodGroupRecord = await FoodGroup.findById(foodGroup);
+    if (foodGroupRecord) {
+      // Xóa foodId khỏi các nhóm món khác
+      await FoodGroup.updateMany({ foods: food._id }, { $pull: { foods: food._id } });
+
+      // Thêm foodId vào nhóm món hiện tại
+      if (!foodGroupRecord.foods.includes(food._id)) {
         foodGroupRecord.foods.push(food._id);
         await foodGroupRecord.save();
       }
