@@ -36,10 +36,6 @@ const FoodSchema = new mongoose.Schema({
     type: Boolean, // Tình trạng còn món hay không
     default: false,
   },
-  isForSale: {
-    type: Boolean,
-    default: false, // Đảm bảo kiểu dữ liệu là Boolean
-  },
   sellingTime: [
     {
       day: {

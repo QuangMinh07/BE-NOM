@@ -122,16 +122,41 @@ const updateFoodItem = async (req, res) => {
     food.price = price || food.price;
     food.description = description || food.description;
     food.imageUrl = imageUrl;
-    food.foodGroup = foodGroup || food.foodGroup;
-    food.isAvailable = typeof isAvailable === "boolean" ? isAvailable : food.isAvailable;
+    if (typeof isAvailable !== "undefined") {
+      food.isAvailable = isAvailable;
+    }
     food.sellingTime = formattedSellingTime;
 
-    // Lưu món ăn đã cập nhật vào MongoDB
-    await food.save();
+    // Chỉ cập nhật sellingTime nếu có trong request
+    if (sellingTime) {
+      const formattedSellingTime = JSON.parse(sellingTime).map((dayData) => {
+        if (dayData.is24h) {
+          return {
+            day: dayData.day,
+            is24h: true,
+            timeSlots: [{ open: "00:00", close: "23:59" }],
+          };
+        } else {
+          return {
+            day: dayData.day,
+            is24h: false,
+            timeSlots: dayData.timeSlots.map((slot) => ({
+              open: slot.startTime,
+              close: slot.endTime,
+            })),
+          };
+        }
+      });
+      food.sellingTime = formattedSellingTime;
+    }
 
-    // Cập nhật danh sách món ăn trong FoodGroup
-    const foodGroupRecord = await FoodGroup.findById(foodGroup);
-    if (foodGroupRecord) {
+    // Xử lý foodGroup nếu có
+    if (foodGroup) {
+      const foodGroupRecord = await FoodGroup.findById(foodGroup);
+      if (!foodGroupRecord) {
+        return res.status(400).json({ message: "Nhóm món không hợp lệ" });
+      }
+
       // Xóa foodId khỏi các nhóm món khác
       await FoodGroup.updateMany({ foods: food._id }, { $pull: { foods: food._id } });
 
@@ -140,7 +165,12 @@ const updateFoodItem = async (req, res) => {
         foodGroupRecord.foods.push(food._id);
         await foodGroupRecord.save();
       }
+
+      food.foodGroup = foodGroup; // Cập nhật nhóm món cho món ăn
     }
+
+    // Lưu món ăn đã cập nhật vào MongoDB
+    await food.save();
 
     return res.status(200).json({ message: "Cập nhật món ăn thành công", food });
   } catch (error) {
@@ -191,36 +221,6 @@ const getFoodsByStoreId = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Lỗi server" });
-  }
-};
-
-const updateFoodAvailability = async (req, res) => {
-  const { foodId } = req.params; // Lấy id từ params của request
-  const { isForSale } = req.body; // Lấy isForSale từ body của request
-
-  try {
-    // Tìm món ăn theo id
-    const food = await Food.findById(foodId);
-
-    // Nếu món ăn không tồn tại, trả về lỗi
-    if (!food) {
-      return res.status(404).json({ message: "Món ăn không tồn tại" });
-    }
-
-    // Kiểm tra nếu store là chuỗi rỗng hoặc không hợp lệ
-    if (!food.store || food.store === "") {
-      return res.status(400).json({ message: "Cửa hàng của món ăn không hợp lệ" });
-    }
-    food.isForSale = isForSale;
-
-    // Lưu lại trạng thái mới sau khi cập nhật
-    const updatedFood = await food.save();
-
-    // Trả về món ăn đã được cập nhật
-    return res.status(200).json(updatedFood);
-  } catch (error) {
-    // Xử lý lỗi và trả về lỗi 500
-    return res.status(500).json({ message: "Có lỗi xảy ra", error });
   }
 };
 
@@ -307,7 +307,6 @@ module.exports = {
   addFoodItem,
   getFoodById,
   getFoodsByStoreId,
-  updateFoodAvailability,
   deleteFoodItem,
   getAllFoods,
   updateFoodItem,
