@@ -303,6 +303,38 @@ const getAllFoods = async (req, res) => {
   }
 };
 
+const updateFoodAvailability = async (req, res) => {
+  const { foodId } = req.params; // Lấy foodId từ params
+  const { isAvailable } = req.body; // Lấy trạng thái mới từ body
+
+  if (typeof isAvailable === "undefined") {
+    return res.status(400).json({ message: "Thiếu dữ liệu isAvailable." });
+  }
+
+  try {
+    // Tìm món ăn theo ID
+    const food = await Food.findById(foodId);
+
+    if (!food) {
+      return res.status(404).json({ message: "Không tìm thấy món ăn." });
+    }
+
+    // Cập nhật trạng thái isAvailable
+    food.isAvailable = isAvailable;
+
+    // Lưu món ăn đã cập nhật vào MongoDB
+    await food.save();
+
+    return res.status(200).json({
+      message: "Cập nhật trạng thái thành công.",
+      food,
+    });
+  } catch (error) {
+    console.error("Lỗi server:", error);
+    return res.status(500).json({ message: "Lỗi server khi cập nhật trạng thái món ăn." });
+  }
+};
+
 module.exports = {
   addFoodItem,
   getFoodById,
@@ -310,4 +342,5 @@ module.exports = {
   deleteFoodItem,
   getAllFoods,
   updateFoodItem,
+  updateFoodAvailability, 
 };
