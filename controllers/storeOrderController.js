@@ -41,6 +41,40 @@ const createOrderFromCart = async (req, res) => {
     // Kiểm tra nếu phương thức thanh toán có trong giỏ hàng
     const paymentMethod = cart.paymentMethod || "Cash"; // Sử dụng 'Cash' nếu chưa có phương thức thanh toán
 
+    if (paymentMethod === "PayOS") {
+      console.log("Đang xử lý thanh toán qua PayOS...");
+
+      // Gọi hàm tạo giao dịch thanh toán qua PayOS
+      const paymentTransactionRes = await createPaymentTransaction(req, res);
+
+      if (!paymentTransactionRes || !paymentTransactionRes.paymentLink) {
+        return res.status(500).json({ error: "Không thể tạo giao dịch thanh toán qua PayOS." });
+      }
+
+      // Gắn URL thanh toán vào đơn hàng
+      savedOrder.paymentUrl = paymentTransactionRes.paymentLink;
+      await savedOrder.save();
+
+      // Thiết lập kiểm tra trạng thái thanh toán
+      setTimeout(async () => {
+        const order = await StoreOrder.findById(savedOrder._id);
+
+        if (order.paymentStatus === "Pending") {
+          // Kiểm tra trạng thái thanh toán PayOS
+          const payOSStatus = await checkPayOSPaymentStatus(order.orderCode);
+
+          if (payOSStatus === "success") {
+            order.paymentStatus = "Paid";
+            order.orderStatus = "Processing";
+            await order.save();
+            console.log(`Thanh toán thành công cho đơn hàng ${savedOrder._id}`);
+          } else {
+            console.log(`Thanh toán chưa hoàn tất cho đơn hàng ${savedOrder._id}`);
+          }
+        }
+      }, 3000); // Kiểm tra sau 3 giây
+    }
+
     // Tạo danh sách món ăn từ giỏ hàng
     const foodDetails = cart.items.map((item) => ({
       foodName: item.food.foodName,
@@ -138,6 +172,21 @@ const createOrderFromCart = async (req, res) => {
   } catch (error) {
     console.error("Lỗi khi tạo đơn hàng từ giỏ hàng:", error);
     res.status(500).json({ error: "Lỗi khi tạo đơn hàng." });
+  }
+};
+
+const checkPayOSPaymentStatus = async (orderCode) => {
+  try {
+    const statusResponse = await payOS.getPaymentStatus({ orderCode });
+
+    if (statusResponse && statusResponse.status === "success") {
+      return "success";
+    }
+
+    return "pending";
+  } catch (error) {
+    console.error("Lỗi kiểm tra trạng thái PayOS:", error);
+    return "error";
   }
 };
 

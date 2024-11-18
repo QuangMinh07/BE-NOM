@@ -5,30 +5,38 @@ const { Schema } = mongoose;
 const paymentTransactionSchema = new Schema({
   cart: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: "Cart", // Tham chiếu tới Cart hoặc đơn hàng
+    ref: "Cart",
     required: true,
   },
   paymentMethod: {
     type: String,
-    enum: ["Momo", "VNPay", "BankCard", "Cash"], // Phương thức thanh toán
+    enum: ["Momo", "VNPay", "BankCard", "Cash", "PayOS"],
     required: true,
   },
   transactionAmount: {
     type: Number,
-    required: true, // Số tiền giao dịch
+    required: true,
   },
   transactionDate: {
     type: Date,
-    default: Date.now, // Ngày giao dịch, mặc định là ngày hiện tại
+    default: Date.now,
   },
   transactionStatus: {
     type: String,
-    enum: ["Pending", "Success", "Failed"], // Trạng thái giao dịch
+    enum: ["Pending", "Success", "Failed"],
     default: "Pending",
+  },
+  paymentUrl: {
+    type: String,
+    required: true,
+  },
+  orderCode: {
+    type: String,
+    required: true,
+    unique: true,
   },
 });
 
-// Tạo Model từ Schema
 const PaymentTransaction = mongoose.model("PaymentTransaction", paymentTransactionSchema);
 
 module.exports = PaymentTransaction;

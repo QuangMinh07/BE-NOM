@@ -110,4 +110,78 @@ const getFoodGroupByFoodIdAndStoreId = async (req, res) => {
   }
 };
 
-module.exports = { addFoodGroup, getFoodGroups, getFoodGroupByFoodIdAndStoreId };
+const deleteFoodGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params; // Lấy groupId từ params
+
+    // Kiểm tra nếu groupId không tồn tại
+    if (!groupId) {
+      return res.status(400).json({ message: "ID nhóm món không được để trống." });
+    }
+
+    // Tìm nhóm món để kiểm tra xem có tồn tại không
+    const foodGroup = await FoodGroup.findById(groupId);
+
+    if (!foodGroup) {
+      return res.status(404).json({ message: "Không tìm thấy nhóm món." });
+    }
+
+    // Xóa các món ăn thuộc nhóm món này
+    await Food.deleteMany({ _id: { $in: foodGroup.foods } });
+
+    // Xóa nhóm món
+    await FoodGroup.findByIdAndDelete(groupId);
+
+    // Xóa nhóm món khỏi danh sách nhóm món của cửa hàng
+    await Store.findByIdAndUpdate(foodGroup.store, {
+      $pull: { foodGroups: groupId },
+    });
+
+    return res.status(200).json({
+      message: "Xóa nhóm món và các món ăn liên quan thành công.",
+    });
+  } catch (error) {
+    // Xử lý lỗi
+    console.error("Error deleting food group:", error);
+    return res.status(500).json({
+      message: "Có lỗi xảy ra khi xóa nhóm món.",
+      error: error.message,
+    });
+  }
+};
+
+const updateFoodGroupName = async (req, res) => {
+  try {
+    const { groupId } = req.params; // Lấy groupId từ params
+    const { groupName } = req.body; // Lấy groupName từ body
+
+    // Kiểm tra nếu groupId hoặc groupName không tồn tại
+    if (!groupId || !groupName) {
+      return res.status(400).json({ message: "ID nhóm món và tên nhóm món không được để trống." });
+    }
+
+    // Tìm nhóm món để cập nhật
+    const foodGroup = await FoodGroup.findById(groupId);
+
+    if (!foodGroup) {
+      return res.status(404).json({ message: "Không tìm thấy nhóm món." });
+    }
+
+    // Cập nhật tên nhóm món
+    foodGroup.groupName = groupName;
+    const updatedFoodGroup = await foodGroup.save();
+
+    return res.status(200).json({
+      message: "Cập nhật tên nhóm món thành công.",
+      foodGroup: updatedFoodGroup,
+    });
+  } catch (error) {
+    console.error("Error updating food group name:", error);
+    return res.status(500).json({
+      message: "Có lỗi xảy ra khi cập nhật tên nhóm món.",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = { addFoodGroup, getFoodGroups, getFoodGroupByFoodIdAndStoreId, deleteFoodGroup, updateFoodGroupName };

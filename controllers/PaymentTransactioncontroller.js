@@ -1,67 +1,164 @@
+const PayOS = require("@payos/node");
+const QRCode = require("qrcode"); // Import thư viện qrcode
 const Cart = require("../models/cart");
 const PaymentTransaction = require("../models/PaymentTransaction");
 const User = require("../models/user");
+require('dotenv').config(); 
 
-// Hàm để tạo PaymentTransaction từ Cart
+const PAYOS_CLIENT_ID = process.env.PAYOS_CLIENT_ID;
+const PAYOS_API_KEY = process.env.PAYOS_API_KEY;
+const PAYOS_CHECKSUM_KEY = process.env.PAYOS_CHECKSUM_KEY;
+
+if (!PAYOS_CLIENT_ID || !PAYOS_API_KEY || !PAYOS_CHECKSUM_KEY) {
+  console.error("Các biến môi trường PayOS chưa được thiết lập đầy đủ.");
+}
+
+const payOS = new PayOS(PAYOS_CLIENT_ID, PAYOS_API_KEY, PAYOS_CHECKSUM_KEY);
+
+console.log('PayOS Config:', payOS);
+
 const createPaymentTransaction = async (req, res) => {
   try {
     const { paymentMethod, useLoyaltyPoints } = req.body;
     const { cartId, storeId } = req.params;
 
-    // Tìm giỏ hàng theo cartId và storeId
-    const cart = await Cart.findOne({ _id: cartId, "items.store": storeId }).populate("paymentTransaction");
+    const cart = await Cart.findOne({ _id: cartId, "items.store": storeId })
+      .populate({
+        path: "items.food",
+        select: "foodName",
+      })
+      .populate("paymentTransaction")
+      .populate("user", "name email phone loyaltyPoints"); 
+
     if (!cart) {
       return res.status(404).json({ error: "Giỏ hàng hoặc cửa hàng không tồn tại." });
     }
 
-    // Kiểm tra nếu giỏ hàng đã có giao dịch thanh toán
     if (cart.paymentTransaction) {
       return res.status(400).json({ error: "Giao dịch thanh toán cho giỏ hàng này đã tồn tại." });
     }
 
-    // Tính toán giảm giá (discount)
+    const user = cart.user;
+    if (!user) {
+      return res.status(404).json({ error: "Người dùng không tồn tại." });
+    }
+
     let discount = 0;
     if (useLoyaltyPoints) {
-      const user = await User.findById(cart.user); // Tìm người dùng
-      if (!user) {
-        return res.status(404).json({ error: "Người dùng không tồn tại." });
-      }
-      if (user.loyaltyPoints > 0) {
-        discount = Math.min(user.loyaltyPoints, cart.totalPrice); // Áp dụng giảm giá
+      discount = Math.min(user.loyaltyPoints || 0, cart.totalPrice);
+    }
+
+    const transactionAmount = Math.round(Math.max(0, cart.totalPrice - discount));
+    const orderCode = Date.now(); 
+    if (orderCode > 9007199254740991) {
+      throw new Error("orderCode vượt quá giá trị tối đa cho phép.");
+    }
+
+    let paymentUrl = "";
+    let qrCodeDataUrl = ""; 
+
+    if (paymentMethod === "PayOS") {
+      try {
+        const paymentItems = (cart.items || []).map((item) => {
+          if (!item.food || !item.food.foodName || !item.price || !item.quantity) {
+            throw new Error(`Dữ liệu sản phẩm không hợp lệ: ${JSON.stringify(item)}`);
+          }
+
+          return {
+            name: item.food.foodName,
+            quantity: item.quantity, 
+            price: Math.round(item.price), 
+            code: item.food._id.toString(),
+          };
+        });
+
+        if (paymentItems.length === 0) {
+          throw new Error("Danh sách sản phẩm trong giỏ hàng trống.");
+        }
+        const customerInfo = {
+          name: user.name || "Khách hàng",
+          email: user.email || "email@example.com",
+          phone: user.phone || "0123456789",
+        };
+
+        const returnUrl = `${process.env.SERVER_URL}/payment-success`;
+        const cancelUrl = `${process.env.SERVER_URL}/payment-cancel`;
+        const notifyUrl = `${process.env.SERVER_URL}/webhook/payos`;
+
+        if (!returnUrl || !cancelUrl || !notifyUrl) {
+          throw new Error("Các URL trả về, hủy bỏ hoặc thông báo không hợp lệ.");
+        }
+        let description = `Thanh toán đơn hàng ${orderCode}`;
+        if (description.length > 25) {
+          description = description.substring(0, 25);
+        }
+
+        const paymentLinkRequest = {
+          orderCode: orderCode,
+          amount: transactionAmount,
+          currency: "VND",
+          description: description,
+          returnUrl: returnUrl,
+          cancelUrl: cancelUrl,
+          notifyUrl: notifyUrl,
+          items: paymentItems,
+          customerInfo: customerInfo,
+          extraData: "",
+        };
+        for (const [key, value] of Object.entries(paymentLinkRequest)) {
+          if (value === undefined || value === null) {
+            throw new Error(`Trường ${key} bị thiếu hoặc không hợp lệ.`);
+          }
+        }
+
+        console.log('paymentLinkRequest:', paymentLinkRequest);
+        const paymentLinkResponse = await payOS.createPaymentLink(paymentLinkRequest);
+
+        if (!paymentLinkResponse || !paymentLinkResponse.checkoutUrl) {
+          throw new Error("Không thể tạo liên kết thanh toán PayOS");
+        }
+
+        paymentUrl = paymentLinkResponse.checkoutUrl;
+
+        qrCodeDataUrl = await QRCode.toDataURL(paymentUrl);
+
+      } catch (payosError) {
+        console.error("Lỗi khi tạo payment link PayOS:", payosError);
+        return res.status(500).json({
+          error: "Không thể tạo liên kết thanh toán PayOS",
+          details: payosError.message,
+        });
       }
     }
 
-    // Cập nhật `cart` để đảm bảo giảm giá được phản ánh đúng
-    const transactionAmount = Math.max(0, cart.totalPrice - discount);
-
-    console.log("Cart Total Price:", cart.totalPrice);
-    console.log("Discount:", discount);
-    console.log("Transaction Amount:", transactionAmount);
-
-    // Tạo giao dịch thanh toán mới
     const newTransaction = new PaymentTransaction({
       cart: cart._id,
-      store: storeId,
       paymentMethod,
-      transactionAmount, // Tổng giá trị sau giảm giá
+      transactionAmount: transactionAmount,
       transactionStatus: "Pending",
       transactionDate: new Date(),
+      paymentUrl,
+      orderCode,
     });
 
-    // Lưu giao dịch thanh toán vào cơ sở dữ liệu
     const savedTransaction = await newTransaction.save();
 
-    // Cập nhật giỏ hàng để tham chiếu tới giao dịch thanh toán mới
     cart.paymentTransaction = savedTransaction._id;
     await cart.save();
 
     res.status(201).json({
       message: "Giao dịch thanh toán được tạo thành công.",
       transaction: savedTransaction,
+      paymentLink: paymentUrl,
+      qrCode: qrCodeDataUrl, 
+      discountedTotal: transactionAmount,
     });
   } catch (error) {
     console.error("Lỗi khi tạo giao dịch thanh toán:", error);
-    res.status(500).json({ error: "Lỗi khi tạo giao dịch thanh toán." });
+    res.status(500).json({
+      error: "Lỗi khi tạo giao dịch thanh toán.",
+      details: error.message,
+    });
   }
 };
 

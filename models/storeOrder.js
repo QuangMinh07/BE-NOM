@@ -46,7 +46,7 @@ const storeOrderSchema = new Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ["Momo", "VNPay", "BankCard", "Cash"],
+    enum: ["Momo", "VNPay", "BankCard", "Cash", "PayOS"],
     required: true,
   },
   orderStatus: {
