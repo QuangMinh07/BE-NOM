@@ -27,6 +27,31 @@ const CartSchema = new mongoose.Schema({
         type: Number,
         required: true,
       },
+      combos: {
+        foods: [
+          {
+            foodId: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "Food", // Tham chiếu món ăn trong combo
+              required: true,
+            },
+            price: {
+              type: Number, // Giá của món ăn trong combo
+              required: true,
+            },
+          },
+        ],
+        totalQuantity: {
+          type: Number, // Tổng số lượng món trong combo
+          required: true,
+          default: 0,
+        },
+        totalPrice: {
+          type: Number, // Tổng giá của combo
+          required: true,
+          default: 0,
+        },
+      },
     },
   ],
   totalPrice: {

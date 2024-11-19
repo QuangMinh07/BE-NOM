@@ -33,6 +33,16 @@ const storeOrderSchema = new Schema({
         foodName: String,
         quantity: Number,
         price: Number,
+        combos: {
+          totalPrice: Number,
+          totalQuantity: Number,
+          foods: [
+            {
+              foodName: String,
+              price: Number,
+            },
+          ],
+        },
       },
     ],
   },

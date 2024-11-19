@@ -17,6 +17,12 @@ const FoodGroupSchema = new mongoose.Schema({
     ref: "Store",
     required: true,
   },
+  comboGroups: [
+    {
+      type: mongoose.Schema.Types.ObjectId, // Lưu danh sách các nhóm món được ghép
+      ref: "FoodGroup",
+    },
+  ],
 });
 
 const FoodGroup = mongoose.model("FoodGroup", FoodGroupSchema);

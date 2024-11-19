@@ -1,5 +1,5 @@
 const express = require("express");
-const { addFoodGroup, getFoodGroups, getFoodGroupByFoodIdAndStoreId, deleteFoodGroup, updateFoodGroupName } = require("../controllers/foodgroupcontroller");
+const { addComboToFoodGroup, addFoodGroup, getFoodGroups, getFoodGroupByFoodIdAndStoreId, deleteFoodGroup, updateFoodGroupName } = require("../controllers/foodgroupcontroller");
 // const passport = require('passport');
 const { authenticateToken } = require("../middlewares/authMiddleware");
 
@@ -11,5 +11,6 @@ router.get("/getfood-groups/:storeId", authenticateToken, getFoodGroups);
 router.get("/get-foods-by-group/:storeId/:foodId", authenticateToken, getFoodGroupByFoodIdAndStoreId);
 router.delete("/delete-foodgroup/:groupId", authenticateToken, deleteFoodGroup);
 router.put("/update-foodgroup/:groupId", authenticateToken, updateFoodGroupName);
+router.post("/add-combo/:groupId", authenticateToken, addComboToFoodGroup);
 
 module.exports = router;

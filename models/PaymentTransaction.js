@@ -28,8 +28,11 @@ const paymentTransactionSchema = new Schema({
   },
   paymentUrl: {
     type: String,
-    required: true,
-  },
+    required: function () {
+      return this.paymentMethod === "PayOS";
+    },
+  }, // Chỉ bắt buộc nếu là PayOS
+
   orderCode: {
     type: String,
     required: true,

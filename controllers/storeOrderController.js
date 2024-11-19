@@ -13,7 +13,15 @@ const createOrderFromCart = async (req, res) => {
     console.log("Received useLoyaltyPoints:", useLoyaltyPoints); // Log giá trị nhận được
 
     // Tìm giỏ hàng theo cartId và populate thông tin món ăn
-    const cart = await Cart.findById(cartId).populate("items.food");
+    const cart = await Cart.findById(cartId)
+      .populate({
+        path: "items.food",
+        select: "foodName price",
+      })
+      .populate({
+        path: "items.combos.foods.foodId",
+        select: "foodName price",
+      });
     if (!cart) {
       return res.status(404).json({ error: "Giỏ hàng không tồn tại." });
     }
@@ -92,6 +100,16 @@ const createOrderFromCart = async (req, res) => {
         foodName: item.food.foodName,
         quantity: item.quantity,
         price: item.price,
+        combos: item.combos
+          ? {
+              totalPrice: item.combos.totalPrice,
+              totalQuantity: item.combos.totalQuantity,
+              foods: item.combos.foods.map((comboFood) => ({
+                foodName: comboFood.foodId.foodName,
+                price: comboFood.price,
+              })),
+            }
+          : null,
       })),
     };
 
@@ -255,6 +273,16 @@ const getOrderDetails = async (req, res) => {
               foodName: item.foodName,
               quantity: item.quantity,
               price: item.price,
+              combos: item.combos
+                ? {
+                    totalPrice: item.combos.totalPrice,
+                    totalQuantity: item.combos.totalQuantity,
+                    foods: item.combos.foods.map((combo) => ({
+                      foodName: combo.foodName,
+                      price: combo.price,
+                    })),
+                  }
+                : null,
             })),
           }
         : null,

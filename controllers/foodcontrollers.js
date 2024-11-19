@@ -238,6 +238,12 @@ const deleteFoodItem = async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy món ăn" });
     }
 
+    // Xóa món ăn khỏi danh sách `foods` trong các nhóm món
+    await FoodGroup.updateMany(
+      { foods: foodId },
+      { $pull: { foods: foodId } } // Xóa món ăn khỏi mảng `foods`
+    );
+
     console.log("Món ăn đã được xóa:", deletedFood); // Log kiểm tra
     res.status(200).json({
       success: true,
@@ -335,6 +341,33 @@ const updateFoodAvailability = async (req, res) => {
   }
 };
 
+const getFoodWithCombo = async (req, res) => {
+  try {
+    const { foodId } = req.params;
+
+    const food = await Food.findById(foodId).populate("foodGroup");
+    if (!food) {
+      return res.status(404).json({ message: "Không tìm thấy món ăn." });
+    }
+
+    const foodGroup = await FoodGroup.findById(food.foodGroup._id).populate("comboGroups");
+    const comboFoods = [];
+
+    for (const comboGroup of foodGroup.comboGroups) {
+      const foodsInComboGroup = await Food.find({ foodGroup: comboGroup._id });
+      comboFoods.push(...foodsInComboGroup);
+    }
+
+    return res.status(200).json({
+      food,
+      comboFoods,
+    });
+  } catch (error) {
+    console.error("Error fetching food with combo:", error);
+    res.status(500).json({ message: "Có lỗi xảy ra.", error: error.message });
+  }
+};
+
 module.exports = {
   addFoodItem,
   getFoodById,
@@ -342,5 +375,6 @@ module.exports = {
   deleteFoodItem,
   getAllFoods,
   updateFoodItem,
-  updateFoodAvailability, 
+  updateFoodAvailability,
+  getFoodWithCombo,
 };

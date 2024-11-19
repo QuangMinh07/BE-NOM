@@ -6,7 +6,7 @@ const Store = require("../models/store");
 const addToCart = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { foodId, quantity } = req.body;
+    const { foodId, quantity, combos } = req.body;
 
     // Tìm món ăn theo foodId và lấy thông tin store
     const food = await Food.findById(foodId).populate("store");
@@ -34,6 +34,22 @@ const addToCart = async (req, res) => {
       }
     }
 
+    // Tính tổng giá và chi tiết món trong combo
+    let comboTotalPrice = 0;
+    let comboFoodDetails = [];
+    if (combos && combos.length > 0) {
+      for (const combo of combos) {
+        const comboFood = await Food.findById(combo.foodId);
+        if (comboFood) {
+          comboTotalPrice += comboFood.price;
+          comboFoodDetails.push({
+            foodId: comboFood._id,
+            price: comboFood.price,
+          });
+        }
+      }
+    }
+
     // Thêm hoặc cập nhật món ăn trong giỏ hàng
     const existingItemIndex = cart.items.findIndex((item) => item.food.toString() === foodId);
 
@@ -41,6 +57,12 @@ const addToCart = async (req, res) => {
       // Nếu món ăn đã có trong giỏ, tăng số lượng
       cart.items[existingItemIndex].quantity += quantity;
       cart.items[existingItemIndex].price = cart.items[existingItemIndex].quantity * food.price;
+      // Cập nhật combo nếu có
+      if (combos && combos.length > 0) {
+        cart.items[existingItemIndex].combos.foods = combos.map((combo) => combo.foodId);
+        cart.items[existingItemIndex].combos.totalQuantity += combos.length;
+        cart.items[existingItemIndex].combos.totalPrice += comboTotalPrice;
+      }
     } else {
       // Nếu món ăn chưa có trong giỏ, thêm món mới
       cart.items.push({
@@ -48,11 +70,19 @@ const addToCart = async (req, res) => {
         store: food.store._id, // Liên kết món ăn với cửa hàng
         quantity,
         price: food.price * quantity,
+        combos:
+          combos && combos.length > 0
+            ? {
+                foods: comboFoodDetails,
+                totalQuantity: combos.length,
+                totalPrice: comboTotalPrice,
+              }
+            : { foods: [], totalQuantity: 0, totalPrice: 0 },
       });
     }
 
     // Cập nhật tổng số tiền trong giỏ hàng
-    cart.totalPrice = cart.items.reduce((total, item) => total + item.price, 0);
+    cart.totalPrice = cart.items.reduce((total, item) => total + item.price + (item.combos?.totalPrice || 0), 0);
 
     // Lưu lại giỏ hàng sau khi cập nhật
     await cart.save();
@@ -196,17 +226,26 @@ const updateShippingInfo = async (req, res) => {
 
 const removeFromCart = async (req, res) => {
   try {
-    const { userId, foodId } = req.params; // Lấy đúng foodId từ params
+    const { userId, cartId, foodId } = req.params;
 
-    // Tìm giỏ hàng của người dùng
-    const cart = await Cart.findOne({ user: userId });
-    if (!cart || cart.items.length === 0) {
-      return res.status(404).json({ message: "Giỏ hàng rỗng hoặc không tồn tại" });
+    if (!userId || !cartId || !foodId) {
+      console.error("Thiếu tham số bắt buộc:", { userId, cartId, foodId });
+      return res.status(400).json({ message: "Thiếu tham số bắt buộc" });
     }
 
-    // Tìm món ăn theo foodId
+    console.log("Received userId:", userId, "CartId:", cartId, "FoodId:", foodId);
+
+    const cart = await Cart.findOne({ _id: cartId, user: userId });
+    if (!cart) {
+      console.log("Cart not found for user:", userId);
+      return res.status(404).json({ message: "Giỏ hàng không tồn tại" });
+    }
+
+    console.log("Cart found:", cart);
+
     const itemIndex = cart.items.findIndex((item) => item.food.toString() === foodId);
     if (itemIndex === -1) {
+      console.log("Food ID not found in cart items:", foodId);
       return res.status(404).json({ message: "Món ăn không tồn tại trong giỏ hàng" });
     }
 
@@ -214,16 +253,45 @@ const removeFromCart = async (req, res) => {
     cart.items.splice(itemIndex, 1);
 
     // Cập nhật tổng giá tiền
-    cart.totalPrice = cart.items.reduce((total, item) => total + item.price * item.quantity, 0);
+    cart.totalPrice = cart.items.reduce((total, item) => total + item.price + (item.combos?.totalPrice || 0), 0);
 
-    // Lưu giỏ hàng sau khi xóa
+    if (cart.items.length === 0) {
+      // Nếu giỏ hàng không còn món nào, xóa giỏ hàng
+      await Cart.findByIdAndDelete(cartId);
+      console.log("Cart deleted as it is now empty.");
+
+      return res.status(200).json({
+        message: "Xóa món ăn và giỏ hàng thành công! Giỏ hàng hiện tại đã bị xóa do không còn món nào.",
+        cart: null, // Trả về null để thông báo giỏ hàng không còn tồn tại
+      });
+    }
+
+    // Nếu còn món ăn, lưu giỏ hàng sau khi cập nhật
     await cart.save();
+
+    // Populate lại giỏ hàng
+    const updatedCart = await Cart.findById(cartId).populate([
+      {
+        path: "items.food",
+        select: "_id foodName price",
+      },
+      {
+        path: "items.combos.foods.foodId",
+        select: "_id foodName price",
+      },
+    ]);
+
+    console.log("Updated cart with populated combos:", updatedCart);
 
     res.status(200).json({
       message: "Xóa món ăn khỏi giỏ hàng thành công!",
-      cart,
+      cart: updatedCart,
     });
   } catch (error) {
+    if (error.kind === "ObjectId") {
+      console.error("Invalid ObjectId or data:", error);
+      return res.status(400).json({ message: "ID không hợp lệ." });
+    }
     console.error("Lỗi khi xóa món ăn khỏi giỏ hàng:", error);
     res.status(500).json({ message: "Lỗi khi xóa món ăn khỏi giỏ hàng", error });
   }
@@ -237,11 +305,16 @@ const getCartByStoreId = async (req, res) => {
     // Tìm giỏ hàng của người dùng với cửa hàng cụ thể
     const cart = await Cart.findOne({
       user: userId,
-      "items.store": storeId, // Tìm giỏ hàng với storeId cụ thể
-    }).populate({
-      path: "items.food", // Lấy thông tin món ăn từ food model
-      select: "foodName price", // Chỉ lấy các trường cần thiết từ food
-    });
+      "items.store": storeId,
+    })
+      .populate({
+        path: "items.food", // Lấy thông tin món ăn từ food model
+        select: "foodName price", // Chỉ lấy các trường cần thiết từ food
+      })
+      .populate({
+        path: "items.combos.foods.foodId", // Lấy thông tin món ăn trong combos
+        select: "foodName", // Lấy thêm tên món ăn
+      });
 
     if (!cart || cart.items.length === 0) {
       return res.status(404).json({ message: "Giỏ hàng rỗng hoặc không tồn tại" });
@@ -254,23 +327,38 @@ const getCartByStoreId = async (req, res) => {
       return res.status(404).json({ message: "Không có món ăn nào trong giỏ hàng từ cửa hàng này." });
     }
 
-    // Tính tổng giá trị chính xác, tránh nhân đôi
+    // Tính tổng giá trị chính xác (bao gồm combos và món chính)
     const totalPrice = storeCartItems.reduce((total, item) => {
-      return total + item.food.price * item.quantity; // Sử dụng giá từ food model
+      const foodPrice = item.food.price * item.quantity; // Giá món chính
+      const comboPrice = item.combos?.totalPrice || 0; // Giá của combos (nếu có)
+      return total + foodPrice + comboPrice; // Tổng giá món chính + combos
     }, 0);
+
+    // Format combos để lấy thêm foodName
+    const formattedItems = storeCartItems.map((item) => ({
+      ...item.toObject(),
+      combos: {
+        ...item.combos,
+        foods: item.combos.foods.map((comboFood) => ({
+          foodId: comboFood.foodId._id,
+          foodName: comboFood.foodId.foodName, // Lấy thêm foodName từ combo
+          price: comboFood.price,
+        })),
+      },
+    }));
 
     // Trả về thông tin giỏ hàng từ cửa hàng, bao gồm cả cartId và thông tin giao hàng
     res.status(200).json({
       message: "Lấy giỏ hàng thành công!",
       cart: {
-        cartId: cart._id, // Trả về cartId
+        cartId: cart._id,
         storeId,
-        items: storeCartItems,
-        totalPrice: totalPrice, // Tổng giá chính xác
-        deliveryAddress: cart.deliveryAddress || "", // Địa chỉ giao hàng
-        receiverName: cart.receiverName || "", // Tên người nhận
-        receiverPhone: cart.receiverPhone || "", // Số điện thoại người nhận
-        description: cart.description || "", // Mô tả thêm (nếu có)
+        items: formattedItems,
+        totalPrice,
+        deliveryAddress: cart.deliveryAddress || "",
+        receiverName: cart.receiverName || "",
+        receiverPhone: cart.receiverPhone || "",
+        description: cart.description || "",
       },
     });
   } catch (error) {
@@ -299,26 +387,26 @@ const deleteCartById = async (req, res) => {
 
 const updateCartItem = async (req, res) => {
   try {
-    const { userId, foodId } = req.params; // Lấy userId và foodId từ params
+    const { userId, cartId, foodId } = req.params; // Nhận thêm cartId từ params
     const { quantity } = req.body; // Lấy số lượng mới từ body
 
-    console.log("Updating cart item on server:", { userId, foodId, quantity });
+    console.log("Updating cart item on server:", { userId, cartId, foodId, quantity });
 
-    if (!userId || !foodId || quantity <= 0) {
+    if (!userId || !cartId || !foodId || quantity <= 0) {
       return res.status(400).json({ error: "Thông tin không hợp lệ." });
     }
 
-    // Tìm giỏ hàng của người dùng và populate items.food
-    const cart = await Cart.findOne({ user: userId }).populate("items.food");
+    // Tìm đúng giỏ hàng dựa trên `userId` và `cartId`
+    const cart = await Cart.findOne({ user: userId, _id: cartId }).populate("items.food");
 
     if (!cart) {
-      console.log("Cart not found for user:", userId);
+      console.log("Cart not found for user and cartId:", userId, cartId);
       return res.status(404).json({ error: "Giỏ hàng không tồn tại." });
     }
 
     console.log("Cart items before update:", cart.items);
 
-    // Kiểm tra xem món ăn có trong giỏ hàng hay không
+    // Tìm món ăn trong giỏ hàng
     const itemIndex = cart.items.findIndex((item) => item.food._id.toString() === foodId);
 
     if (itemIndex === -1) {

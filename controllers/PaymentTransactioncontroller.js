@@ -3,7 +3,7 @@ const QRCode = require("qrcode"); // Import thư viện qrcode
 const Cart = require("../models/cart");
 const PaymentTransaction = require("../models/PaymentTransaction");
 const User = require("../models/user");
-require('dotenv').config(); 
+require("dotenv").config();
 
 const PAYOS_CLIENT_ID = process.env.PAYOS_CLIENT_ID;
 const PAYOS_API_KEY = process.env.PAYOS_API_KEY;
@@ -15,7 +15,7 @@ if (!PAYOS_CLIENT_ID || !PAYOS_API_KEY || !PAYOS_CHECKSUM_KEY) {
 
 const payOS = new PayOS(PAYOS_CLIENT_ID, PAYOS_API_KEY, PAYOS_CHECKSUM_KEY);
 
-console.log('PayOS Config:', payOS);
+console.log("PayOS Config:", payOS);
 
 const createPaymentTransaction = async (req, res) => {
   try {
@@ -28,7 +28,7 @@ const createPaymentTransaction = async (req, res) => {
         select: "foodName",
       })
       .populate("paymentTransaction")
-      .populate("user", "name email phone loyaltyPoints"); 
+      .populate("user", "name email phone loyaltyPoints");
 
     if (!cart) {
       return res.status(404).json({ error: "Giỏ hàng hoặc cửa hàng không tồn tại." });
@@ -49,13 +49,13 @@ const createPaymentTransaction = async (req, res) => {
     }
 
     const transactionAmount = Math.round(Math.max(0, cart.totalPrice - discount));
-    const orderCode = Date.now(); 
+    const orderCode = Date.now();
     if (orderCode > 9007199254740991) {
       throw new Error("orderCode vượt quá giá trị tối đa cho phép.");
     }
 
     let paymentUrl = "";
-    let qrCodeDataUrl = ""; 
+    let qrCodeDataUrl = "";
 
     if (paymentMethod === "PayOS") {
       try {
@@ -66,8 +66,8 @@ const createPaymentTransaction = async (req, res) => {
 
           return {
             name: item.food.foodName,
-            quantity: item.quantity, 
-            price: Math.round(item.price), 
+            quantity: item.quantity,
+            price: Math.round(item.price),
             code: item.food._id.toString(),
           };
         });
@@ -111,7 +111,7 @@ const createPaymentTransaction = async (req, res) => {
           }
         }
 
-        console.log('paymentLinkRequest:', paymentLinkRequest);
+        console.log("paymentLinkRequest:", paymentLinkRequest);
         const paymentLinkResponse = await payOS.createPaymentLink(paymentLinkRequest);
 
         if (!paymentLinkResponse || !paymentLinkResponse.checkoutUrl) {
@@ -121,7 +121,6 @@ const createPaymentTransaction = async (req, res) => {
         paymentUrl = paymentLinkResponse.checkoutUrl;
 
         qrCodeDataUrl = await QRCode.toDataURL(paymentUrl);
-
       } catch (payosError) {
         console.error("Lỗi khi tạo payment link PayOS:", payosError);
         return res.status(500).json({
@@ -150,7 +149,7 @@ const createPaymentTransaction = async (req, res) => {
       message: "Giao dịch thanh toán được tạo thành công.",
       transaction: savedTransaction,
       paymentLink: paymentUrl,
-      qrCode: qrCodeDataUrl, 
+      qrCode: qrCodeDataUrl,
       discountedTotal: transactionAmount,
     });
   } catch (error) {

@@ -184,4 +184,46 @@ const updateFoodGroupName = async (req, res) => {
   }
 };
 
-module.exports = { addFoodGroup, getFoodGroups, getFoodGroupByFoodIdAndStoreId, deleteFoodGroup, updateFoodGroupName };
+const addComboToFoodGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params; // Lấy ID nhóm món cần ghép combo
+    const { comboGroupIds } = req.body; // Lấy danh sách ID nhóm món cần ghép từ body
+
+    // Kiểm tra dữ liệu đầu vào
+    if (!groupId || !comboGroupIds || !Array.isArray(comboGroupIds)) {
+      return res.status(400).json({ message: "Dữ liệu không hợp lệ. Vui lòng kiểm tra groupId và comboGroupIds." });
+    }
+
+    // Tìm nhóm món chính
+    const mainGroup = await FoodGroup.findById(groupId);
+
+    if (!mainGroup) {
+      return res.status(404).json({ message: "Không tìm thấy nhóm món chính." });
+    }
+
+    // Kiểm tra và thêm comboGroupIds vào danh sách comboGroups
+    const validComboGroups = await FoodGroup.find({ _id: { $in: comboGroupIds } });
+
+    if (!validComboGroups.length) {
+      return res.status(404).json({ message: "Không tìm thấy nhóm món để ghép." });
+    }
+
+    mainGroup.comboGroups = [...new Set([...mainGroup.comboGroups, ...validComboGroups.map((group) => group._id)])];
+
+    // Lưu nhóm món đã cập nhật
+    const updatedGroup = await mainGroup.save();
+
+    return res.status(200).json({
+      message: "Ghép nhóm món thành công.",
+      foodGroup: updatedGroup,
+    });
+  } catch (error) {
+    console.error("Error adding combo to food group:", error);
+    return res.status(500).json({
+      message: "Có lỗi xảy ra khi ghép nhóm món.",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = { addFoodGroup, getFoodGroups, getFoodGroupByFoodIdAndStoreId, deleteFoodGroup, updateFoodGroupName, addComboToFoodGroup };
