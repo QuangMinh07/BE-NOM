@@ -226,4 +226,46 @@ const addComboToFoodGroup = async (req, res) => {
   }
 };
 
-module.exports = { addFoodGroup, getFoodGroups, getFoodGroupByFoodIdAndStoreId, deleteFoodGroup, updateFoodGroupName, addComboToFoodGroup };
+const removeComboFromFoodGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params; // Lấy ID nhóm món chính
+    const { comboGroupId } = req.body; // Lấy ID nhóm món combo cần xóa từ body
+    console.log("Request Params:", req.params);
+    console.log("Request Body:", req.body);
+    // Kiểm tra dữ liệu đầu vào
+    if (!groupId || !comboGroupId) {
+      return res.status(400).json({ message: "Dữ liệu không hợp lệ. Vui lòng kiểm tra groupId và comboGroupId." });
+    }
+
+    // Tìm nhóm món chính
+    const mainGroup = await FoodGroup.findById(groupId);
+
+    if (!mainGroup) {
+      return res.status(404).json({ message: "Không tìm thấy nhóm món chính." });
+    }
+
+    // Xóa comboGroupId khỏi danh sách comboGroups
+    const index = mainGroup.comboGroups.indexOf(comboGroupId);
+    if (index === -1) {
+      return res.status(404).json({ message: "Nhóm món combo không tồn tại trong danh sách." });
+    }
+
+    mainGroup.comboGroups.splice(index, 1); // Xóa comboGroupId khỏi danh sách comboGroups
+
+    // Lưu nhóm món đã cập nhật
+    const updatedGroup = await mainGroup.save();
+
+    return res.status(200).json({
+      message: "Xóa nhóm món combo thành công.",
+      foodGroup: updatedGroup,
+    });
+  } catch (error) {
+    console.error("Error removing combo from food group:", error);
+    return res.status(500).json({
+      message: "Có lỗi xảy ra khi xóa nhóm món combo.",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = { addFoodGroup, getFoodGroups, getFoodGroupByFoodIdAndStoreId, deleteFoodGroup, updateFoodGroupName, addComboToFoodGroup, removeComboFromFoodGroup };
