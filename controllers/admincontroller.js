@@ -397,21 +397,17 @@ const getStoreCount = async (req, res) => {
 
 const getAllStores = async (req, res) => {
   try {
-    const {
-      sortField = "storeName", // Mặc định sắp xếp theo tên cửa hàng
-      sortOrder = "asc", // Mặc định sắp xếp tăng dần
-    } = req.query;
+    const { page = 1, limit = 10, sortField = "storeName", sortOrder = "asc" } = req.query;
 
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+    // const page = parseInt(req.query.page) || 1;
+    // const limit = parseInt(req.query.limit) || 10;
 
     // Lấy danh sách cửa hàng và populate thông tin chủ cửa hàng và sản phẩm
     const stores = await Store.find()
       .populate("owner", "userName email representativeName isOnline storeCount businessType storeAddress") // Populate thông tin chủ cửa hàng
       .populate("foods") // Populate danh sách sản phẩm
-      .skip(skip)
-      .limit(limit);
+      .skip((page - 1) * limit) // Phân trang
+      .limit(limit); // Giới hạn số lượng kết quả
 
     if (!stores || stores.length === 0) {
       return res.status(404).json({
@@ -692,23 +688,43 @@ const getAllFoods = async (req, res) => {
 };
 
 const getAllOrders = async (req, res) => {
+  const { page = 1, limit = 10, sortField = "orderDate", sortOrder = "desc", orderStatus } = req.query;
+
   try {
-    // Lấy tất cả các đơn hàng và populate thông tin người dùng và cửa hàng
-    const orders = await StoreOrder.find()
-      .populate("user", "fullName") // Lấy tên người dùng
+    // Tạo đối tượng sắp xếp
+    const sortOptions = { [sortField]: sortOrder === "asc" ? 1 : -1 };
+
+    // Tạo bộ lọc theo trạng thái đơn hàng (nếu có)
+    const filterOptions = orderStatus ? { orderStatus } : {};
+
+    // Lấy tất cả các đơn hàng, phân trang, sắp xếp, và lọc
+    const orders = await StoreOrder.find(filterOptions)
+      .populate("user", "fullName loyaltyPoints") // Lấy tên người dùng
       .populate("store", "storeName") // Lấy tên cửa hàng
-      .populate("foods", "foodName price"); // Lấy tên và giá món ăn
+      .populate("foods", "foodName price") // Lấy tên và giá món ăn
+      .populate({
+        path: "shipper",
+        populate: {
+          path: "userId",
+          select: "fullName",
+        },
+        select: "temporaryAddress vehicleNumber bankAccount",
+      }) // Lấy thông tin shipper
+      .sort(sortOptions) // Sắp xếp theo tiêu chí
+      .skip((page - 1) * limit) // Bỏ qua các đơn hàng không thuộc trang hiện tại
+      .limit(limit); // Giới hạn số lượng kết quả trả về
 
     // Nếu không có đơn hàng
-    if (orders.length === 0) {
+    if (!orders || orders.length === 0) {
       return res.status(404).json({ message: "Không có đơn hàng nào." });
     }
 
     // Tính tổng số lượng đơn hàng
-    const totalOrdersCount = await StoreOrder.countDocuments();
+    const totalOrdersCount = await StoreOrder.countDocuments(filterOptions);
 
     // Tính tổng giá trị của tất cả các đơn hàng
     const totalOrderAmount = await StoreOrder.aggregate([
+      { $match: filterOptions }, // Áp dụng bộ lọc nếu có
       {
         $group: {
           _id: null, // Không nhóm theo bất kỳ trường nào
@@ -721,18 +737,51 @@ const getAllOrders = async (req, res) => {
     const allOrdersDetails = orders.map((order) => ({
       orderId: order._id,
       user: {
-        userId: order.user._id,
-        fullName: order.user.fullName,
+        userId: order.user?._id || null,
+        fullName: order.user?.fullName || "Không rõ",
+        loyaltyPoints: order.user?.loyaltyPoints || "Không có"
       },
       store: {
-        storeId: order.store._id,
-        storeName: order.store.storeName,
+        storeId: order.store?._id || null,
+        storeName: order.store?.storeName || "Không rõ",
       },
+      shipper: order.shipper
+        ? {
+            shipperId: order.shipper._id,
+            fullName: order.shipper.userId?.fullName || "Không rõ",
+            temporaryAddress: order.shipper.temporaryAddress,
+            vehicleNumber: order.shipper.vehicleNumber,
+            bankAccount: order.shipper.bankAccount,
+          }
+        : null,
       foods: order.foods.map((food) => ({
         foodName: food.foodName,
         price: food.price,
         quantity: order.foods.find((f) => f._id.equals(food._id)).quantity, // Giả sử bạn lưu quantity
       })),
+      cartSnapshot: order.cartSnapshot
+        ? {
+            totalPrice: order.cartSnapshot.totalPrice,
+            deliveryAddress: order.cartSnapshot.deliveryAddress,
+            receiverName: order.cartSnapshot.receiverName,
+            receiverPhone: order.cartSnapshot.receiverPhone,
+            items: order.cartSnapshot.items.map((item) => ({
+              foodName: item.foodName,
+              quantity: item.quantity,
+              price: item.price,
+              combos: item.combos
+                ? {
+                    totalPrice: item.combos.totalPrice,
+                    totalQuantity: item.combos.totalQuantity,
+                    foods: item.combos.foods.map((combo) => ({
+                      foodName: combo.foodName,
+                      price: combo.price,
+                    })),
+                  }
+                : null,
+            })),
+          }
+        : null,
       totalAmount: order.totalAmount,
       orderDate: order.orderDate,
       orderStatus: order.orderStatus,
@@ -745,6 +794,8 @@ const getAllOrders = async (req, res) => {
       message: "Danh sách đơn hàng",
       totalOrdersCount, // Tổng số đơn hàng
       totalOrderAmount: totalOrderAmount.length > 0 ? totalOrderAmount[0].totalAmount : 0, // Tổng giá trị của các đơn hàng
+      totalPages: Math.ceil(totalOrdersCount / limit),
+      currentPage: page,
       allOrdersDetails,
     });
   } catch (error) {
