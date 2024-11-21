@@ -1,12 +1,13 @@
 const express = require("express");
 const router = express.Router();
-const { createPaymentTransaction } = require("../controllers/PaymentTransactioncontroller"); // Đường dẫn tới hàm addStaff
+const { createPaymentTransaction, updatePaymentTransaction } = require("../controllers/PaymentTransactioncontroller"); // Đường dẫn tới hàm addStaff
 const { authenticateToken } = require("../middlewares/authMiddleware");
 const PaymentTransaction = require("../models/PaymentTransaction");
 const Cart = require("../models/cart");
 
 // Route POST thêm nhân viên mới
 router.post("/create-payment/:cartId/:storeId", authenticateToken, createPaymentTransaction);
+router.put("/update-payment/:cartId/:storeId", authenticateToken, updatePaymentTransaction);
 
 // router.get("/payment-success", async (req, res) => {
 //   try {

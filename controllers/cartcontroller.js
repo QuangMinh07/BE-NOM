@@ -1,7 +1,6 @@
 const Cart = require("../models/cart");
 const Food = require("../models/food");
 const Store = require("../models/store");
-
 // Hàm thêm món ăn vào giỏ hàng mà không yêu cầu địa chỉ giao hàng
 const addToCart = async (req, res) => {
   try {
@@ -50,8 +49,16 @@ const addToCart = async (req, res) => {
       }
     }
 
+    // Kiểm tra nếu đã có món ăn giống hệt trong giỏ hàng
+    const isComboMatching = (existingCombos, newCombos) => {
+      if (existingCombos.length !== newCombos.length) return false;
+      return existingCombos.every((existingCombo, index) => {
+        return existingCombo.foodId.toString() === newCombos[index].foodId && existingCombo.price === newCombos[index].price;
+      });
+    };
+
     // Thêm hoặc cập nhật món ăn trong giỏ hàng
-    const existingItemIndex = cart.items.findIndex((item) => item.food.toString() === foodId);
+    const existingItemIndex = cart.items.findIndex((item) => item.food.toString() === foodId && isComboMatching(item.combos.foods, comboFoodDetails));
 
     if (existingItemIndex !== -1) {
       // Nếu món ăn đã có trong giỏ, tăng số lượng
@@ -78,6 +85,7 @@ const addToCart = async (req, res) => {
                 totalPrice: comboTotalPrice,
               }
             : { foods: [], totalQuantity: 0, totalPrice: 0 },
+        totalPrice: food.price * quantity + comboTotalPrice,
       });
     }
 
@@ -387,16 +395,15 @@ const deleteCartById = async (req, res) => {
 
 const updateCartItem = async (req, res) => {
   try {
-    const { userId, cartId, foodId } = req.params; // Nhận thêm cartId từ params
-    const { quantity } = req.body; // Lấy số lượng mới từ body
+    const { userId, cartId, foodId } = req.params;
+    const { quantity, combos } = req.body;
 
-    console.log("Updating cart item on server:", { userId, cartId, foodId, quantity });
+    console.log("Server received request to update:", { userId, cartId, foodId, quantity, combos });
 
     if (!userId || !cartId || !foodId || quantity <= 0) {
       return res.status(400).json({ error: "Thông tin không hợp lệ." });
     }
 
-    // Tìm đúng giỏ hàng dựa trên `userId` và `cartId`
     const cart = await Cart.findOne({ user: userId, _id: cartId }).populate("items.food");
 
     if (!cart) {
@@ -404,36 +411,70 @@ const updateCartItem = async (req, res) => {
       return res.status(404).json({ error: "Giỏ hàng không tồn tại." });
     }
 
-    console.log("Cart items before update:", cart.items);
+    console.log("Current cart items:", cart.items);
 
-    // Tìm món ăn trong giỏ hàng
-    const itemIndex = cart.items.findIndex((item) => item.food._id.toString() === foodId);
+    const isComboMatching = (existingCombos, newCombos) => {
+      if (!newCombos || newCombos.length === 0) return true;
+      if (existingCombos.length !== newCombos.length) return false;
+
+      const sortedExisting = [...existingCombos].sort((a, b) => a.foodId.toString().localeCompare(b.foodId.toString()));
+      const sortedNew = [...newCombos].sort((a, b) => a.foodId.localeCompare(b.foodId));
+
+      return sortedExisting.every((existingCombo, index) => {
+        const newCombo = sortedNew[index];
+        return existingCombo.foodId.toString() === newCombo.foodId && existingCombo.price === newCombo.price;
+      });
+    };
+
+    const itemIndex = cart.items.findIndex((item) => {
+      const isFoodMatch = item.food._id.toString() === foodId;
+      const isComboMatch = isComboMatching(item.combos?.foods || [], combos || []);
+      console.log({
+        isFoodMatch,
+        isComboMatch,
+        item,
+        combosRequested: combos,
+      });
+      return isFoodMatch && isComboMatch;
+    });
 
     if (itemIndex === -1) {
-      console.log("Food ID not found in cart items:", foodId);
-      return res.status(404).json({ error: "Món ăn không có trong giỏ hàng." });
+      console.log("Food ID or combos not found in cart items:", foodId);
+      return res.status(404).json({
+        error: "Món ăn không có trong giỏ hàng hoặc combos không khớp.",
+        existingCombos: cart.items.map((item) => item.combos?.foods || []),
+        requestCombos: combos,
+      });
     }
 
-    // Cập nhật số lượng và giá
     const item = cart.items[itemIndex];
+    const oldQuantity = item.quantity;
     item.quantity = quantity;
     item.price = quantity * item.food.price;
 
-    console.log("Updated item:", item);
+    if (item.combos && item.combos.foods.length > 0) {
+      const quantityChange = quantity - oldQuantity;
+      item.combos.totalQuantity += quantityChange;
 
-    // Tính lại tổng giá trị giỏ hàng
-    cart.totalPrice = cart.items.reduce((total, item) => total + item.price, 0);
+      for (const combo of item.combos.foods) {
+        combo.price += (quantityChange * combo.price) / oldQuantity;
+      }
 
-    console.log("Updated total price:", cart.totalPrice);
+      item.combos.totalPrice = item.combos.foods.reduce((total, combo) => total + combo.price, 0);
+    }
 
-    // Cập nhật thời gian sửa đổi
+    item.totalPrice = item.price + (item.combos?.totalPrice || 0);
+
+    cart.totalPrice = cart.items.reduce((total, item) => total + item.totalPrice, 0);
+
     cart.updatedAt = Date.now();
 
-    // Lưu lại giỏ hàng sau khi cập nhật
     await cart.save();
 
+    console.log("Updated cart successfully:", cart);
+
     res.status(200).json({
-      message: "Cập nhật số lượng món ăn thành công.",
+      message: "Cập nhật số lượng món ăn và combos thành công.",
       cart,
     });
   } catch (error) {

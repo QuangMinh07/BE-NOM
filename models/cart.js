@@ -52,6 +52,11 @@ const CartSchema = new mongoose.Schema({
           default: 0,
         },
       },
+      totalPrice: {
+        type: Number, // Tổng giá của item (bao gồm giá món và combos)
+        required: true,
+        default: 0,
+      },
     },
   ],
   totalPrice: {

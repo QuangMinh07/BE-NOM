@@ -32,7 +32,18 @@ const createOrderFromCart = async (req, res) => {
       return res.status(404).json({ error: "Người dùng không tồn tại." });
     }
 
+    // Kiểm tra phương thức thanh toán
+    if (!cart.paymentTransaction) {
+      return res.status(400).json({ error: "Vui lòng chọn phương thức thanh toán trước khi thanh toán." });
+    }
+
+    // Kiểm tra địa chỉ giao hàng
+    if (!cart.deliveryAddress) {
+      return res.status(400).json({ error: "Vui lòng nhập địa chỉ giao hàng trước khi thanh toán." });
+    }
+
     let discount = 0; // Số tiền giảm giá (nếu sử dụng điểm tích lũy)
+    let loyaltyPointsUsed = 0; // Điểm tích lũy đã sử dụng
 
     if (useLoyaltyPoints) {
       // Kiểm tra nếu người dùng có đủ điểm tích lũy
@@ -42,6 +53,7 @@ const createOrderFromCart = async (req, res) => {
 
       // Tính toán số điểm tích lũy được sử dụng, không vượt quá giá trị đơn hàng
       discount = Math.min(user.loyaltyPoints, cart.totalPrice); // Giảm tối đa bằng giá trị đơn hàng
+      loyaltyPointsUsed = discount; // Ghi lại số điểm đã sử dụng
       user.loyaltyPoints -= discount; // Trừ toàn bộ điểm đã sử dụng
       await user.save(); // Lưu lại điểm tích lũy đã cập nhật
     }
@@ -132,6 +144,7 @@ const createOrderFromCart = async (req, res) => {
       paymentStatus: "Pending", // Trạng thái thanh toán ban đầu là "Pending"
       paymentMethod: paymentMethod, // Thêm phương thức thanh toán
       useLoyaltyPoints: useLoyaltyPoints || false, // Lưu trạng thái sử dụng điểm tích lũy
+      loyaltyPointsUsed,
     });
 
     // Lưu đơn hàng vào cơ sở dữ liệu
@@ -168,6 +181,7 @@ const createOrderFromCart = async (req, res) => {
         paymentStatus: populatedOrder.paymentStatus,
         paymentMethod: populatedOrder.paymentMethod, // Phương thức thanh toán
         cartSnapshot: populatedOrder.cartSnapshot, // Thêm thông tin snapshot của giỏ hàng
+        loyaltyPointsUsed, // Điểm tích lũy đã sử dụng
       },
     });
 
@@ -300,6 +314,7 @@ const getOrderDetails = async (req, res) => {
       orderStatus: order.orderStatus,
       paymentStatus: order.paymentStatus,
       paymentMethod: order.paymentMethod,
+      loyaltyPointsUsed: order.loyaltyPointsUsed || 0, // Điểm tích lũy đã sử dụng
     };
 
     res.status(200).json({ message: "Chi tiết đơn hàng", orderDetails });
