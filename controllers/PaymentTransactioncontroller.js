@@ -125,7 +125,7 @@ const createPaymentTransaction = async (req, res) => {
 
         paymentUrl = paymentLinkResponse.checkoutUrl;
 
-        qrCodeDataUrl = await QRCode.toDataURL(paymentUrl);
+        qrCodeDataUrl = paymentLinkResponse.qrCode;
       } catch (payosError) {
         console.error("Lỗi khi tạo payment link PayOS:", payosError);
         return res.status(500).json({
@@ -293,7 +293,7 @@ const updatePaymentTransaction = async (req, res) => {
         paymentUrl = paymentLinkResponse.checkoutUrl;
 
         // Tạo lại mã QR nếu URL thanh toán thay đổi
-        qrCodeDataUrl = await QRCode.toDataURL(paymentUrl);
+        qrCodeDataUrl = paymentLinkResponse.qrCode;
       } catch (payosError) {
         console.error("Lỗi khi tạo payment link PayOS (update):", payosError);
         return res.status(500).json({

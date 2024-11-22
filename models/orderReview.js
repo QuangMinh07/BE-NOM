@@ -1,5 +1,22 @@
 const mongoose = require("mongoose");
 
+const ReplySchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User", // Liên kết đến người trả lời (cửa hàng hoặc người dùng)
+    required: true,
+  },
+  replyText: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  replyDate: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
 const OrderReviewSchema = new mongoose.Schema({
   order: {
     type: mongoose.Schema.Types.ObjectId,
@@ -31,8 +48,9 @@ const OrderReviewSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  replies: [ReplySchema], // Danh sách phản hồi của cửa hàng
 });
 
-const OrderReview = mongoose.model("orderReview", OrderReviewSchema);
+const OrderReview = mongoose.model("OrderReview", OrderReviewSchema);
 
 module.exports = OrderReview;

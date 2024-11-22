@@ -53,25 +53,89 @@ const getStoreReviews = async (req, res) => {
   const { storeId } = req.params;
 
   try {
-    // Kiểm tra xem cửa hàng có tồn tại không
     const store = await Store.findById(storeId);
     if (!store) {
       return res.status(404).json({ message: "Cửa hàng không tồn tại" });
     }
 
-    // Lấy danh sách đánh giá của cửa hàng từ OrderReview
     const reviews = await OrderReview.find({ store: storeId })
       .populate({
         path: "user",
-        select: "fullName email", // Hiển thị thông tin người đánh giá
+        select: "fullName email",
       })
       .populate({
         path: "order",
-        select: "orderDate totalAmount", // Hiển thị thông tin đơn hàng liên quan
+        select: "orderDate totalAmount cartSnapshot items combos",
       })
-      .sort({ reviewDate: -1 }); // Sắp xếp đánh giá từ mới nhất đến cũ nhất
+      .populate({
+        path: "replies.user", // Populate thông tin người trả lời
+        select: "fullName email",
+      })
+      .sort({ reviewDate: -1 });
 
-    res.status(200).json({ message: "Lấy danh sách đánh giá thành công", reviews });
+    const reviewData = reviews.map((review) => {
+      const { user, rating, comment, reviewDate, order, replies } = review;
+
+      if (!order) {
+        console.log(`Order không tồn tại cho review: ${review._id}`);
+        return {
+          _id: review._id,
+          user: user?.fullName || "Ẩn danh",
+          rating,
+          comment,
+          reviewDate,
+          orderDate: null,
+          totalAmount: null,
+          orderedFoods: [],
+          replies: [],
+        };
+      }
+
+      // Lấy danh sách món ăn từ items
+      const orderedFoods =
+        order?.cartSnapshot?.items?.map((item) => ({
+          foodName: item.foodName,
+          quantity: item.quantity,
+          price: item.price,
+        })) || [];
+
+      // Lấy danh sách món ăn từ combos
+      const comboFoods =
+        order?.cartSnapshot?.combos?.foods?.map((comboFood) => ({
+          foodName: comboFood.foodName,
+          price: comboFood.price,
+          quantity: order.cartSnapshot?.combos?.totalQuantity || 1,
+        })) || [];
+
+      // Gộp tất cả món ăn
+      const allOrderedFoods = [...orderedFoods, ...comboFoods];
+
+      // Xử lý replies
+      const formattedReplies =
+        replies?.map((reply) => ({
+          _id: reply._id,
+          replyText: reply.replyText,
+          replyDate: reply.replyDate,
+          user: reply.user?.fullName || "Ẩn danh",
+        })) || [];
+
+      return {
+        _id: review._id,
+        user: user?.fullName || "Ẩn danh",
+        rating,
+        comment,
+        reviewDate,
+        orderDate: order?.orderDate,
+        totalAmount: order?.totalAmount,
+        orderedFoods: allOrderedFoods,
+        replies: formattedReplies, // Thêm replies vào phản hồi
+      };
+    });
+
+    res.status(200).json({
+      message: "Lấy danh sách đánh giá thành công",
+      reviews: reviewData,
+    });
   } catch (error) {
     console.error("Lỗi khi lấy danh sách đánh giá:", error);
     res.status(500).json({ message: "Lỗi server" });
@@ -90,4 +154,43 @@ const checkOrderReview = async (req, res) => {
   }
 };
 
-module.exports = { rateOrderAndStore, getStoreReviews, checkOrderReview };
+// Hàm thêm phản hồi
+const addReplyToReview = async (req, res) => {
+  const { reviewId } = req.params;
+  const { replyText, userId } = req.body;
+
+  console.log("Received data:", req.body);
+  console.log("Review ID:", req.params.reviewId);
+
+  if (!replyText || !userId) {
+    return res.status(400).json({ success: false, message: "Thiếu thông tin phản hồi hoặc người trả lời." });
+  }
+
+  try {
+    // Tìm bình luận cần trả lời
+    const review = await OrderReview.findById(reviewId);
+    if (!review) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy bình luận." });
+    }
+
+    // Thêm phản hồi vào bình luận
+    review.replies.push({
+      user: userId,
+      replyText: replyText,
+    });
+
+    // Lưu lại
+    await review.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Phản hồi đã được thêm thành công.",
+      review,
+    });
+  } catch (error) {
+    console.error("Lỗi khi thêm phản hồi:", error);
+    res.status(500).json({ success: false, message: "Lỗi server." });
+  }
+};
+
+module.exports = { rateOrderAndStore, getStoreReviews, checkOrderReview, addReplyToReview };
