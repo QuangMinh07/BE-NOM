@@ -8,6 +8,10 @@ const ShipperInfo = require("../models/shipper");
 const UserPersonalInfo = require("../models/userPersonal");
 const StoreOrder = require("../models/storeOrder");
 const Food = require("../models/food");
+const Staff = require("../models/staff"); // Đường dẫn tới modal Staff của bạn
+const FoodGroup = require("../models/foodgroup"); // Import model FoodGroup
+const OrderReview = require("../models/orderReview");
+
 const nodemailer = require("nodemailer");
 
 const registerAdmin = async (req, res, next) => {
@@ -132,7 +136,7 @@ const getAllUser = async (req, res) => {
     const skip = (page - 1) * limit;
 
     // Lọc người dùng theo vai trò nếu có truyền
-    const query = role ? { roleId: role } : { roleId: { $in: ["customer", "seller", "shipper"] } };
+    const query = role ? { roleId: role } : { roleId: { $in: ["customer", "seller", "shipper", "staff"] } };
 
     // Nếu có truyền isOnline, thêm điều kiện lọc online hoặc offline
     if (typeof isOnline !== "undefined") {
@@ -739,7 +743,7 @@ const getAllOrders = async (req, res) => {
       user: {
         userId: order.user?._id || null,
         fullName: order.user?.fullName || "Không rõ",
-        loyaltyPoints: order.user?.loyaltyPoints || "Không có"
+        loyaltyPoints: order.user?.loyaltyPoints || "Không có",
       },
       store: {
         storeId: order.store?._id || null,
@@ -894,6 +898,297 @@ const getLoginMethodStatistics = async (req, res) => {
   }
 };
 
+const sendNotificationEmail = async (email, subject, message) => {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject,
+      text: message,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Email sent to ${email} with subject: ${subject}`);
+  } catch (error) {
+    console.error(`Lỗi khi gửi email tới ${email}:`, error.message);
+  }
+};
+
+const lockStore = async (req, res) => {
+  const { storeId } = req.body;
+
+  try {
+    const store = await Store.findById(storeId).populate("owner", "email fullName");
+
+    if (!store) {
+      return res.status(404).json({ message: "Cửa hàng không tồn tại" });
+    }
+
+    if (store.lockStatus !== "unlocked") {
+      return res.status(400).json({ message: "Cửa hàng đã bị khóa trước đó hoặc đang chờ xóa." });
+    }
+
+    store.lockStatus = "locked"; // Đặt trạng thái là đã bị khóa
+    store.deletionScheduledAt = Date.now() + 15 * 24 * 60 * 60 * 1000; // Thời gian xóa sau 15 ngày
+    store.updatedAt = new Date();
+    await store.save();
+
+    console.log(`Cửa hàng ${store.storeName} đã bị khóa.`);
+
+    // Gửi email thông báo khóa
+    if (store.owner && store.owner.email) {
+      const subject = "Thông báo: Cửa hàng của bạn đã bị khóa";
+      const message = `Kính gửi ${store.owner.fullName},\n\nCửa hàng "${store.storeName}" của bạn đã bị khóa. Nếu bạn không mở khóa trong vòng 15 ngày, cửa hàng và dữ liệu liên quan sẽ bị xóa.\n\nTrân trọng,\nĐội ngũ hỗ trợ`;
+
+      try {
+        await sendNotificationEmail(store.owner.email, subject, message);
+      } catch (error) {
+        console.error("Error sending email:", error.message);
+      }
+    } else {
+      console.error("Không tìm thấy email của chủ cửa hàng.");
+    }
+
+    // Đặt hẹn xóa sau 15 ngày
+    setTimeout(async () => {
+      try {
+        const storeToDelete = await Store.findById(storeId).populate("owner", "email fullName");
+
+        if (!storeToDelete) {
+          console.log("Không tìm thấy cửa hàng trong cơ sở dữ liệu.");
+          return;
+        }
+
+        console.log("Thông tin cửa hàng trước khi xóa:", storeToDelete);
+
+        // Lưu thông tin chủ sở hữu trước khi xóa
+        const ownerEmail = storeToDelete.owner?.email;
+        const ownerFullName = storeToDelete.owner?.fullName;
+        const storeName = storeToDelete.storeName;
+
+        // Kiểm tra lại trạng thái lockStatus
+        if (storeToDelete.lockStatus === "locked") {
+          console.log(`Bắt đầu xóa cửa hàng ${storeToDelete.storeName}.`);
+
+          // Xóa tất cả dữ liệu liên quan
+          await Food.deleteMany({ store: storeId });
+          await FoodGroup.deleteMany({ store: storeId });
+          await OrderReview.deleteMany({ store: storeId });
+          await Staff.deleteMany({ store: storeId });
+
+          // Lưu thông tin trước khi xóa
+          const tempOwner = { email: ownerEmail, fullName: ownerFullName, storeName };
+
+          await Store.findByIdAndDelete(storeId);
+
+          // Cập nhật chủ cửa hàng
+          const owner = await User.findById(storeToDelete.owner);
+          if (owner) {
+            owner.roleId = "customer";
+            owner.isApproved = false;
+            owner.representativeName = "";
+            owner.businessType = "";
+            owner.cccd = "";
+            owner.storeIds = owner.storeIds.filter((id) => !id.equals(storeId));
+            owner.storeCount = Math.max(0, owner.storeCount - 1);
+            await owner.save();
+          }
+
+          console.log(`Đã xóa cửa hàng ${tempOwner.storeName} và cập nhật thông tin người dùng.`);
+
+          // Gửi email thông báo đã xóa
+          if (tempOwner.email) {
+            const deleteSubject = "Thông báo: Cửa hàng của bạn đã bị xóa";
+            const deleteMessage = `Kính gửi ${tempOwner.fullName},\n\nCửa hàng "${tempOwner.storeName}" của bạn đã bị xóa do không mở khóa trong thời hạn quy định.\n\nTrân trọng,\nĐội ngũ hỗ trợ`;
+
+            try {
+              await sendNotificationEmail(tempOwner.email, deleteSubject, deleteMessage);
+            } catch (error) {
+              console.error("Error sending deletion email:", error.message);
+            }
+          } else {
+            console.error("Không tìm thấy email của chủ cửa hàng để gửi thông báo xóa.");
+          }
+        } else {
+          console.log("Cửa hàng đã được mở khóa hoặc không tồn tại. Không thực hiện xóa.");
+        }
+      } catch (error) {
+        console.error("Lỗi khi xóa cửa hàng:", error.message);
+      }
+    }, 15 * 24 * 60 * 60 * 1000); // 1 phút
+
+    res.status(200).json({
+      success: true,
+      message: `Cửa hàng ${store.storeName} đã bị khóa. Sẽ bị xóa nếu không mở khóa trong 15 ngày.`,
+    });
+  } catch (error) {
+    console.error("Lỗi khi khóa cửa hàng:", error.message);
+    res.status(500).json({ message: "Lỗi máy chủ khi khóa cửa hàng" });
+  }
+};
+
+const unlockStore = async (req, res) => {
+  const { storeId } = req.body;
+
+  try {
+    const store = await Store.findById(storeId).populate("owner", "email fullName");
+
+    if (!store) {
+      return res.status(404).json({ message: "Cửa hàng không tồn tại" });
+    }
+
+    if (store.lockStatus === "unlocked") {
+      return res.status(400).json({ message: "Cửa hàng đã được mở khóa trước đó." });
+    }
+
+    store.lockStatus = "unlocked"; // Đặt trạng thái là mở khóa
+    store.updatedAt = new Date();
+    await store.save();
+
+    // Gửi email thông báo
+    if (store.owner && store.owner.email) {
+      const subject = "Thông báo: Cửa hàng của bạn đã được mở khóa";
+      const message = `Kính gửi ${store.owner.fullName},\n\nCửa hàng "${store.storeName}" của bạn đã được mở khóa và có thể hoạt động trở lại.\n\nCảm ơn bạn đã hợp tác.\n\nTrân trọng,\nĐội ngũ hỗ trợ`;
+
+      try {
+        await sendNotificationEmail(store.owner.email, subject, message);
+      } catch (error) {
+        console.error("Error sending email:", error.message);
+      }
+    } else {
+      console.error("Không tìm thấy email của chủ cửa hàng.");
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Cửa hàng ${store.storeName} đã được mở khóa.`,
+    });
+  } catch (error) {
+    console.error("Lỗi khi mở khóa cửa hàng:", error.message);
+    res.status(500).json({ message: "Lỗi máy chủ khi mở khóa cửa hàng" });
+  }
+};
+
+const deleteUser = async (req, res) => {
+  const { userIds, deleteImmediately } = req.body; // Nhận thêm tham số deleteImmediately
+  console.log("User IDs received:", userIds);
+  console.log("Delete Immediately:", deleteImmediately);
+
+  if (!Array.isArray(userIds) || userIds.length === 0) {
+    return res.status(400).json({ message: "Danh sách userIds không hợp lệ" });
+  }
+
+  try {
+    // Tìm các người dùng cần xử lý
+    const usersToDelete = await User.find({ _id: { $in: userIds } });
+
+    if (usersToDelete.length === 0) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng để xóa" });
+    }
+
+    if (deleteImmediately) {
+      // Xóa ngay lập tức
+      for (const user of usersToDelete) {
+        const userEmail = user.email;
+        const userFullName = user.fullName;
+
+        console.log(`Xóa ngay lập tức người dùng ${user.userName}`);
+
+        // Xóa dữ liệu liên quan
+        await UserPersonalInfo.deleteMany({ userId: user._id });
+        await Store.deleteMany({ owner: user._id });
+        await User.findByIdAndDelete(user._id);
+
+        console.log(`Người dùng ${userFullName} đã bị xóa thành công.`);
+
+        // Gửi email thông báo xóa
+        if (userEmail) {
+          const deleteSubject = "Thông báo: Tài khoản của bạn đã bị xóa";
+          const deleteMessage = `Kính gửi ${userFullName},\n\nTài khoản của bạn đã bị xóa theo yêu cầu.\n\nTrân trọng,\nĐội ngũ hỗ trợ`;
+          try {
+            await sendNotificationEmail(userEmail, deleteSubject, deleteMessage);
+            console.log(`Email thông báo xóa đã được gửi tới ${userEmail}.`);
+          } catch (error) {
+            console.error("Error sending deletion email:", error.message);
+          }
+        }
+      }
+      return res.status(200).json({
+        success: true,
+        message: "Người dùng đã được xóa ngay lập tức.",
+      });
+    } else {
+      // Thiết lập xóa sau 15 ngày
+      for (const user of usersToDelete) {
+        const userEmail = user.email;
+        const userFullName = user.fullName;
+
+        console.log(`Thiết lập xóa người dùng ${user.userName} sau 15 ngày.`);
+
+        // Gửi email thông báo chờ xóa
+        if (userEmail) {
+          const subject = "Thông báo: Tài khoản của bạn đang chờ xóa";
+          const message = `Kính gửi ${userFullName},\n\nTài khoản của bạn đang trong trạng thái chờ xóa. Nếu bạn không đăng nhập trong vòng 15 ngày, tài khoản và dữ liệu liên quan sẽ bị xóa vĩnh viễn.\n\nTrân trọng,\nĐội ngũ hỗ trợ`;
+          try {
+            await sendNotificationEmail(userEmail, subject, message);
+            console.log(`Email thông báo đã được gửi tới ${userEmail}.`);
+          } catch (error) {
+            console.error("Error sending immediate email:", error.message);
+          }
+        }
+
+        setTimeout(async () => {
+          try {
+            const userToDelete = await User.findById(user._id);
+
+            if (!userToDelete) {
+              console.log(`Không tìm thấy người dùng ${user._id} trong cơ sở dữ liệu.`);
+              return;
+            }
+
+            const deletionThreshold = new Date();
+            deletionThreshold.setDate(deletionThreshold.getDate() - 15);
+
+            if (new Date(userToDelete.updatedAt) < deletionThreshold) {
+              console.log(`Xóa người dùng ${userToDelete.userName} do không hoạt động trong 15 ngày.`);
+
+              // Xóa các dữ liệu liên quan
+              await UserPersonalInfo.deleteMany({ userId: user._id });
+              await Store.deleteMany({ owner: user._id });
+              await User.findByIdAndDelete(user._id);
+
+              console.log(`Người dùng ${userFullName} đã bị xóa thành công.`);
+            } else {
+              console.log("Người dùng đã hoạt động trở lại. Không thực hiện xóa.");
+            }
+          } catch (error) {
+            console.error("Lỗi khi xóa người dùng:", error.message);
+          }
+        }, 15 * 24 * 60 * 60 * 1000); // 15 ngày
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Đã thiết lập trạng thái chờ xóa cho các người dùng.",
+      });
+    }
+  } catch (error) {
+    console.error("Lỗi khi xử lý người dùng:", error.message);
+    res.status(500).json({ message: "Lỗi máy chủ khi xử lý người dùng" });
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
@@ -909,4 +1204,7 @@ module.exports = {
   getAllFoods,
   getAllOrders,
   getLoginMethodStatistics,
+  lockStore,
+  unlockStore,
+  deleteUser,
 };

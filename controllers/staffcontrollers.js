@@ -33,7 +33,8 @@ const addStaff = async (req, res) => {
 
     return res.status(200).json({ message: "Thêm nhân viên thành công.", staff: savedStaff });
   } catch (error) {
-    return res.status(500).json({ message: "Lỗi hệ thống. Vui lòng thử lại sau.", error });
+    console.error("Lỗi khi thêm nhân viên:", error); // Log đầy đủ lỗi
+    return res.status(500).json({ message: "Lỗi hệ thống. Vui lòng thử lại sau.", error: error.message });
   }
 };
 

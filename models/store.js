@@ -82,7 +82,11 @@ const StoreSchema = new mongoose.Schema({
     type: Number,
     default: 0, // Sao trung bình ban đầu là 0
   },
-
+  lockStatus: {
+    type: String,
+    enum: ["unlocked", "locked", "pending_delete"],
+    default: "unlocked", // Mặc định là không bị khóa
+  },
   createdAt: {
     type: Date,
     default: Date.now,
