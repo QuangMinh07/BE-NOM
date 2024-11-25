@@ -1,5 +1,5 @@
 const express = require("express");
-const { deleteUser, lockStore, unlockStore, registerAdmin, loginAdmin, getAllUser, approveSeller, rejectSeller, getLoginMethodStatistics, getStoreCount, getAllStores, approveShipper, rejectShipper, getDeliveredOrdersAndRevenue, getAllUsers, getAllFoods, getAllOrders } = require("../controllers/admincontroller");
+const { getRevenueByMonthAndYear, getRevenueByPaymentMethod, getDeliveredOrdersAndRevenueFoodType, deleteUser, lockStore, unlockStore, registerAdmin, loginAdmin, getAllUser, approveSeller, rejectSeller, getLoginMethodStatistics, getStoreCount, getAllStores, approveShipper, rejectShipper, getDeliveredOrdersAndRevenue, getAllUsers, getAllFoods, getAllOrders } = require("../controllers/admincontroller");
 const { authenticateToken } = require("../middlewares/authMiddleware"); // Import the middleware
 const router = express.Router();
 
@@ -23,5 +23,8 @@ router.get("/get-all-user-login", authenticateToken, getLoginMethodStatistics);
 router.post("/lock-store", authenticateToken, lockStore);
 router.post("/unlock-store", authenticateToken, unlockStore);
 router.post("/delete-user", authenticateToken, deleteUser);
+router.get("/revenuefoodtype", authenticateToken, getDeliveredOrdersAndRevenueFoodType);
+router.get("/revenuepayment", authenticateToken, getRevenueByPaymentMethod);
+router.get("/revenue-by-month-year", authenticateToken, getRevenueByMonthAndYear);
 
 module.exports = router;

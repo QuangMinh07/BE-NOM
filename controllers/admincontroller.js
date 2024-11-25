@@ -1189,6 +1189,154 @@ const deleteUser = async (req, res) => {
   }
 };
 
+const getDeliveredOrdersAndRevenueFoodType = async (req, res) => {
+  try {
+    // Tìm tất cả các đơn hàng có trạng thái "Delivered"
+    const deliveredOrders = await StoreOrder.find({ orderStatus: "Delivered" })
+      .populate("user", "fullName") // Lấy tên người dùng
+      .populate("store", "storeName foodType") // Lấy tên cửa hàng và foodType của cửa hàng
+      .populate("foods", "foodName price"); // Lấy tên và giá món ăn
+
+    // Nếu không có đơn hàng nào với trạng thái "Delivered"
+    if (deliveredOrders.length === 0) {
+      return res.status(404).json({ message: "Không có đơn hàng nào đã được giao." });
+    }
+
+    // Tính tổng doanh thu của tất cả các đơn hàng
+    const totalRevenue = deliveredOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+
+    // Tính doanh thu của cửa hàng theo foodType (cộng doanh thu cho tất cả cửa hàng có foodType đó)
+    const storeRevenueByFoodType = {};
+
+    // Duyệt qua tất cả các đơn hàng
+    deliveredOrders.forEach((order) => {
+      const foodType = order.store.foodType; // Lấy foodType của cửa hàng
+
+      // Kiểm tra xem nhóm foodType đã tồn tại chưa trong storeRevenueByFoodType
+      if (!storeRevenueByFoodType[foodType]) {
+        storeRevenueByFoodType[foodType] = 0; // Khởi tạo doanh thu cho foodType
+      }
+
+      // Cộng doanh thu của cửa hàng vào foodType
+      storeRevenueByFoodType[foodType] += order.totalAmount;
+    });
+
+    // Trả về dữ liệu tổng doanh thu và doanh thu theo foodType cho cửa hàng
+    res.status(200).json({
+      message: "Danh sách đơn hàng đã được giao, tổng doanh thu và doanh thu cửa hàng theo foodType",
+      deliveredOrdersDetails: deliveredOrders,
+      totalRevenue, // Tổng doanh thu của tất cả các đơn hàng
+      storeRevenuePerFoodType: storeRevenueByFoodType, // Doanh thu cho từng foodType
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy đơn hàng đã giao và tính doanh thu:", error);
+    res.status(500).json({ error: "Lỗi khi lấy đơn hàng đã giao và tính doanh thu." });
+  }
+};
+
+const getRevenueByPaymentMethod = async (req, res) => {
+  try {
+    // Lấy tất cả các đơn hàng có trạng thái "Delivered"
+    const deliveredOrders = await StoreOrder.aggregate([
+      {
+        $match: { orderStatus: "Delivered" }, // Chỉ lấy đơn hàng có trạng thái "Delivered"
+      },
+      {
+        $project: {
+          paymentMethod: 1, // Lấy phương thức thanh toán
+          totalAmount: 1, // Lấy tổng doanh thu của đơn hàng
+          orderDate: 1, // Lấy ngày đơn hàng
+          month: { $month: "$orderDate" }, // Trích xuất tháng từ orderDate
+          year: { $year: "$orderDate" }, // Trích xuất năm từ orderDate
+        },
+      },
+      {
+        $group: {
+          _id: { paymentMethod: "$paymentMethod", month: "$month", year: "$year" }, // Nhóm theo phương thức thanh toán, tháng và năm
+          totalRevenue: { $sum: "$totalAmount" }, // Tính tổng doanh thu cho mỗi nhóm
+        },
+      },
+      {
+        $sort: { "_id.year": 1, "_id.month": 1 }, // Sắp xếp theo năm và tháng
+      },
+    ]);
+
+    if (deliveredOrders.length === 0) {
+      return res.status(404).json({ message: "Không có đơn hàng nào đã được giao." });
+    }
+
+    // Chuẩn bị dữ liệu trả về
+    const revenueByPaymentMethod = {};
+
+    deliveredOrders.forEach((order) => {
+      const { paymentMethod, month, year } = order._id;
+      const totalRevenue = order.totalRevenue;
+
+      if (!revenueByPaymentMethod[paymentMethod]) {
+        revenueByPaymentMethod[paymentMethod] = [];
+      }
+
+      // Lưu doanh thu theo tháng cho từng phương thức thanh toán
+      revenueByPaymentMethod[paymentMethod].push({
+        month,
+        year,
+        totalRevenue,
+      });
+    });
+
+    // Trả về tổng doanh thu theo phương thức thanh toán và tháng
+    res.status(200).json({
+      message: "Tổng doanh thu theo phương thức thanh toán và tháng",
+      revenueByPaymentMethod,
+    });
+  } catch (error) {
+    console.error("Lỗi khi tính doanh thu theo phương thức thanh toán:", error);
+    res.status(500).json({ error: "Lỗi khi tính doanh thu theo phương thức thanh toán." });
+  }
+};
+
+const getRevenueByMonthAndYear = async (req, res) => {
+  try {
+    // Tính tổng doanh thu của các đơn hàng theo tháng và năm
+    const revenueByMonthAndYear = await StoreOrder.aggregate([
+      {
+        $match: { orderStatus: "Delivered" }, // Lọc đơn hàng đã giao
+      },
+      {
+        $project: {
+          totalAmount: 1, // Tổng doanh thu của đơn hàng
+          orderDate: 1, // Ngày đơn hàng
+          month: { $month: "$orderDate" }, // Trích xuất tháng từ orderDate
+          year: { $year: "$orderDate" }, // Trích xuất năm từ orderDate
+        },
+      },
+      {
+        $group: {
+          _id: { month: "$month", year: "$year" }, // Nhóm theo tháng và năm
+          totalRevenue: { $sum: "$totalAmount" }, // Tính tổng doanh thu của mỗi tháng
+        },
+      },
+      {
+        $sort: { "_id.year": 1, "_id.month": 1 }, // Sắp xếp theo năm và tháng
+      },
+    ]);
+
+    // Nếu không có đơn hàng nào
+    if (revenueByMonthAndYear.length === 0) {
+      return res.status(404).json({ message: "Không có đơn hàng nào đã được giao." });
+    }
+
+    // Trả về tổng doanh thu theo tháng và năm
+    res.status(200).json({
+      message: "Tổng doanh thu theo tháng và năm",
+      revenueByMonthAndYear,
+    });
+  } catch (error) {
+    console.error("Lỗi khi tính doanh thu theo tháng và năm:", error);
+    res.status(500).json({ error: "Lỗi khi tính doanh thu theo tháng và năm." });
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
@@ -1207,4 +1355,7 @@ module.exports = {
   lockStore,
   unlockStore,
   deleteUser,
+  getDeliveredOrdersAndRevenueFoodType,
+  getRevenueByPaymentMethod,
+  getRevenueByMonthAndYear,
 };
