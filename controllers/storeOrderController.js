@@ -60,41 +60,41 @@ const createOrderFromCart = async (req, res) => {
     }
 
     // Kiểm tra nếu phương thức thanh toán có trong giỏ hàng
-    const paymentMethod = cart.paymentMethod || "Cash"; // Sử dụng 'Cash' nếu chưa có phương thức thanh toán
+    const paymentMethod = paymentTransaction.paymentMethod; // Lấy phương thức thanh toán từ giao dịch
+    const paymentStatus = paymentTransaction.transactionStatus === "Success" ? "Paid" : "Pending"; // Cập nhật trạng thái dựa vào giao dịch
+    // if (paymentMethod === "PayOS") {
+    //   console.log("Đang xử lý thanh toán qua PayOS...");
 
-    if (paymentMethod === "PayOS") {
-      console.log("Đang xử lý thanh toán qua PayOS...");
+    //   // Gọi hàm tạo giao dịch thanh toán qua PayOS
+    //   const paymentTransactionRes = await createPaymentTransaction(req, res);
 
-      // Gọi hàm tạo giao dịch thanh toán qua PayOS
-      const paymentTransactionRes = await createPaymentTransaction(req, res);
+    //   if (!paymentTransactionRes || !paymentTransactionRes.paymentLink) {
+    //     return res.status(500).json({ error: "Không thể tạo giao dịch thanh toán qua PayOS." });
+    //   }
 
-      if (!paymentTransactionRes || !paymentTransactionRes.paymentLink) {
-        return res.status(500).json({ error: "Không thể tạo giao dịch thanh toán qua PayOS." });
-      }
+    //   // Gắn URL thanh toán vào đơn hàng
+    //   savedOrder.paymentUrl = paymentTransactionRes.paymentLink;
+    //   await savedOrder.save();
 
-      // Gắn URL thanh toán vào đơn hàng
-      savedOrder.paymentUrl = paymentTransactionRes.paymentLink;
-      await savedOrder.save();
+    //   // Thiết lập kiểm tra trạng thái thanh toán
+    //   setTimeout(async () => {
+    //     const order = await StoreOrder.findById(savedOrder._id);
 
-      // Thiết lập kiểm tra trạng thái thanh toán
-      setTimeout(async () => {
-        const order = await StoreOrder.findById(savedOrder._id);
+    //     if (order.paymentStatus === "Pending") {
+    //       // Kiểm tra trạng thái thanh toán PayOS
+    //       const payOSStatus = await checkPayOSPaymentStatus(order.orderCode);
 
-        if (order.paymentStatus === "Pending") {
-          // Kiểm tra trạng thái thanh toán PayOS
-          const payOSStatus = await checkPayOSPaymentStatus(order.orderCode);
-
-          if (payOSStatus === "success") {
-            order.paymentStatus = "Paid";
-            order.orderStatus = "Processing";
-            await order.save();
-            console.log(`Thanh toán thành công cho đơn hàng ${savedOrder._id}`);
-          } else {
-            console.log(`Thanh toán chưa hoàn tất cho đơn hàng ${savedOrder._id}`);
-          }
-        }
-      }, 3000); // Kiểm tra sau 3 giây
-    }
+    //       if (payOSStatus === "success") {
+    //         order.paymentStatus = "Paid";
+    //         order.orderStatus = "Processing";
+    //         await order.save();
+    //         console.log(`Thanh toán thành công cho đơn hàng ${savedOrder._id}`);
+    //       } else {
+    //         console.log(`Thanh toán chưa hoàn tất cho đơn hàng ${savedOrder._id}`);
+    //       }
+    //     }
+    //   }, 3000); // Kiểm tra sau 3 giây
+    // }
 
     // Tạo danh sách món ăn từ giỏ hàng
     const foodDetails = cart.items.map((item) => ({
@@ -142,7 +142,7 @@ const createOrderFromCart = async (req, res) => {
       receiverPhone: cart.receiverPhone, // Số điện thoại người nhận lấy từ giỏ hàng
       orderDate: new Date(), // Thời gian tạo đơn hàng là hiện tại
       orderStatus: "Pending", // Trạng thái đơn hàng ban đầu là "Pending"
-      paymentStatus: "Pending", // Trạng thái thanh toán ban đầu là "Pending"
+      paymentStatus: paymentStatus, // Trạng thái thanh toán ban đầu là "Pending"
       paymentMethod: paymentMethod, // Thêm phương thức thanh toán
       useLoyaltyPoints: useLoyaltyPoints || false, // Lưu trạng thái sử dụng điểm tích lũy
       loyaltyPointsUsed,
