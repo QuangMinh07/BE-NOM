@@ -34,8 +34,9 @@ const createOrderFromCart = async (req, res) => {
     }
 
     // Kiểm tra phương thức thanh toán
-    if (!cart.paymentTransaction) {
-      return res.status(400).json({ error: "Vui lòng chọn phương thức thanh toán trước khi thanh toán." });
+    const paymentTransaction = cart.paymentTransaction;
+    if (!paymentTransaction) {
+      return res.status(400).json({ error: "Không tìm thấy thông tin giao dịch thanh toán." });
     }
 
     // Kiểm tra địa chỉ giao hàng
