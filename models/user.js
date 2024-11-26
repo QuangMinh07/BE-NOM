@@ -135,6 +135,10 @@ const UserSchema = new mongoose.Schema(
     //   type: String,
     //   default: "", // Khởi tạo với giá trị rỗng
     // },
+    previousUserName: {
+      type: String,
+      default: null, // Lưu `userName` trước đó (nếu có)
+    },
   },
   {
     validateBeforeSave: true,
