@@ -523,7 +523,7 @@ const searchStoresAndFoods = async (req, res) => {
 
     // Tìm kiếm trong bảng Food
     const foodQuery = { foodName: { $regex: searchTerm, $options: "i" } };
-    const foods = await Food.find(foodQuery).populate("store", "storeName storeAddress").select("foodName price description imageUrl isAvailable");
+    const foods = await Food.find(foodQuery).populate("store", "storeName storeAddress").select("foodName price description imageUrl isAvailable discountedPrice isDiscounted");
 
     // Kiểm tra nếu không có kết quả tìm kiếm
     if (stores.length === 0 && foods.length === 0) {

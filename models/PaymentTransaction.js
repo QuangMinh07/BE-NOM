@@ -38,6 +38,8 @@ const paymentTransactionSchema = new Schema({
     required: true,
     unique: true,
   },
+
+  useLoyaltyPoints: { type: Boolean, default: false }, // Thêm trường này
 });
 
 const PaymentTransaction = mongoose.model("PaymentTransaction", paymentTransactionSchema);

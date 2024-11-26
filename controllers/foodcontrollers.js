@@ -296,6 +296,8 @@ const getAllFoods = async (req, res) => {
         foodGroup: food.foodGroup.groupName,
         isAvailable: food.isAvailable,
         isForSale: food.isForSale,
+        discountedPrice: food.discountedPrice,
+        isDiscounted: food.isDiscounted,
         sellingTime: food.sellingTime,
         createdAt: food.createdAt,
         updatedAt: food.updatedAt,
@@ -368,6 +370,79 @@ const getFoodWithCombo = async (req, res) => {
   }
 };
 
+const addDiscountToFood = async (req, res) => {
+  const { foodId } = req.params; // Lấy foodId từ params
+  const { discountedPrice } = req.body; // Lấy discountedPrice từ body
+
+  try {
+    // Tìm món ăn theo ID
+    const food = await Food.findById(foodId);
+
+    if (!food) {
+      return res.status(404).json({ message: "Không tìm thấy món ăn." });
+    }
+
+    // Kiểm tra tính hợp lệ của giá giảm
+    if (typeof discountedPrice !== "number" || discountedPrice <= 0) {
+      return res.status(400).json({ message: "Giá giảm không hợp lệ." });
+    }
+
+    if (discountedPrice >= food.price) {
+      return res.status(400).json({ message: "Giá giảm phải nhỏ hơn giá gốc của món ăn." });
+    }
+
+    // Cập nhật giá giảm cho món ăn
+    food.discountedPrice = discountedPrice;
+
+    // Lưu món ăn đã cập nhật vào MongoDB
+    await food.save();
+
+    return res.status(200).json({
+      message: "Thêm giảm giá cho món ăn thành công.",
+      food,
+    });
+  } catch (error) {
+    console.error("Lỗi server:", error);
+    return res.status(500).json({ message: "Lỗi server khi thêm giảm giá cho món ăn." });
+  }
+};
+
+const toggleDiscountAcceptance = async (req, res) => {
+  const { foodId } = req.params; // Lấy foodId từ params
+  const { isDiscounted } = req.body; // Lấy trạng thái isDiscounted từ body
+
+  try {
+    // Tìm món ăn theo ID
+    const food = await Food.findById(foodId);
+
+    if (!food) {
+      return res.status(404).json({ message: "Không tìm thấy món ăn." });
+    }
+
+    if (typeof isDiscounted !== "boolean") {
+      return res.status(400).json({ message: "Trạng thái giảm giá không hợp lệ." });
+    }
+
+    if (isDiscounted && !food.discountedPrice) {
+      return res.status(400).json({ message: "Không thể áp dụng giảm giá. Vui lòng thêm giá giảm trước." });
+    }
+
+    // Cập nhật trạng thái giảm giá
+    food.isDiscounted = isDiscounted;
+
+    // Lưu món ăn đã cập nhật vào MongoDB
+    await food.save();
+
+    return res.status(200).json({
+      message: isDiscounted ? "Áp dụng giảm giá thành công." : "Hủy áp dụng giảm giá thành công.",
+      food,
+    });
+  } catch (error) {
+    console.error("Lỗi server:", error);
+    return res.status(500).json({ message: "Lỗi server khi cập nhật giảm giá.", error });
+  }
+};
+
 module.exports = {
   addFoodItem,
   getFoodById,
@@ -377,4 +452,6 @@ module.exports = {
   updateFoodItem,
   updateFoodAvailability,
   getFoodWithCombo,
+  addDiscountToFood,
+  toggleDiscountAcceptance,
 };

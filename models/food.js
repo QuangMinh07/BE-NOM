@@ -12,6 +12,11 @@ const FoodSchema = new mongoose.Schema({
     required: true,
     default: "",
   },
+  discountedPrice: {
+    type: Number, // Giá giảm
+    default: null, // Không có giá giảm mặc định
+  },
+  isDiscounted: { type: Boolean, default: false }, // Trạng thái áp dụng giảm giá
   description: {
     type: String,
     trim: true,

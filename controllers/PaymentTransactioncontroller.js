@@ -86,8 +86,8 @@ const createPaymentTransaction = async (req, res) => {
           phone: user.phone || "0123456789",
         };
 
-        const returnUrl = `${process.env.SERVER_URL}/payment-success`;
-        const cancelUrl = `${process.env.SERVER_URL}/payment-cancel`;
+        const returnUrl = `${process.env.SERVER_URL}/v1/PaymentTransaction/payment-success`;
+        const cancelUrl = `${process.env.SERVER_URL}/v1/PaymentTransaction/payment-cancel`;
         const notifyUrl = `${process.env.SERVER_URL}/webhook/payos`;
 
         if (!returnUrl || !cancelUrl || !notifyUrl) {
@@ -166,6 +166,7 @@ const createPaymentTransaction = async (req, res) => {
       transactionDate: new Date(),
       paymentUrl,
       orderCode,
+      useLoyaltyPoints, // Thêm trường này
     });
 
     const savedTransaction = await newTransaction.save();
