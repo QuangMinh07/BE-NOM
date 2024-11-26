@@ -20,10 +20,13 @@ const createOrderFromCart = async (req, res) => {
         select: "paymentMethod transactionAmount transactionDate transactionStatus paymentUrl orderCode useLoyaltyPoints", // Chọn các trường bạn cần
       })
       .populate({
-        path: "items.food", // Giả sử bạn cần thông tin về các món ăn trong giỏ hàng
+        path: "items.food",
+        select: "foodName price",
+      })
+      .populate({
+        path: "items.combos.foods.foodId",
         select: "foodName price",
       });
-
     if (!cart) {
       return res.status(404).json({ error: "Giỏ hàng không tồn tại." });
     }
@@ -61,9 +64,8 @@ const createOrderFromCart = async (req, res) => {
     }
 
     // Kiểm tra nếu phương thức thanh toán có trong giỏ hàng
-    const paymentMethod = cart.paymentMethod || "Cash"; // Sử dụng 'Cash' nếu chưa có phương thức thanh toán
+    const paymentMethod = cart.paymentTransaction?.paymentMethod || "Cash"; // Lấy từ paymentTransaction nếu có
 
-    // Xử lý khi thanh toán qua PayOS
     if (paymentMethod === "PayOS") {
       console.log("Đang xử lý thanh toán qua PayOS...");
 
@@ -78,22 +80,24 @@ const createOrderFromCart = async (req, res) => {
       savedOrder.paymentUrl = paymentTransactionRes.paymentLink;
       await savedOrder.save();
 
-      // Kiểm tra trạng thái thanh toán PayOS
-      const payOSStatus = await checkPayOSPaymentStatus(savedOrder.orderCode);
+      // Thiết lập kiểm tra trạng thái thanh toán
+      setTimeout(async () => {
+        const order = await StoreOrder.findById(savedOrder._id);
 
-      // Cập nhật paymentStatus và orderStatus
-      if (payOSStatus === "success") {
-        savedOrder.paymentStatus = "Paid"; // Cập nhật trạng thái thanh toán
-        savedOrder.orderStatus = "Processing"; // Đơn hàng đã được xử lý
-        await savedOrder.save();
-      } else {
-        savedOrder.paymentStatus = "Pending"; // Trạng thái thanh toán chưa hoàn tất
-        await savedOrder.save();
-      }
-    } else if (paymentMethod === "Cash") {
-      // Nếu phương thức thanh toán là tiền mặt, giữ trạng thái là "Pending"
-      savedOrder.paymentStatus = "Pending";
-      await savedOrder.save();
+        if (order.paymentStatus === "Pending") {
+          // Kiểm tra trạng thái thanh toán PayOS
+          const payOSStatus = await checkPayOSPaymentStatus(order.orderCode);
+
+          if (payOSStatus === "success") {
+            order.paymentStatus = "Paid";
+            order.orderStatus = "Processing";
+            await order.save();
+            console.log(`Thanh toán thành công cho đơn hàng ${savedOrder._id}`);
+          } else {
+            console.log(`Thanh toán chưa hoàn tất cho đơn hàng ${savedOrder._id}`);
+          }
+        }
+      }, 3000); // Kiểm tra sau 3 giây
     }
 
     // Tạo danh sách món ăn từ giỏ hàng
@@ -142,7 +146,7 @@ const createOrderFromCart = async (req, res) => {
       receiverPhone: cart.receiverPhone, // Số điện thoại người nhận lấy từ giỏ hàng
       orderDate: new Date(), // Thời gian tạo đơn hàng là hiện tại
       orderStatus: "Pending", // Trạng thái đơn hàng ban đầu là "Pending"
-      paymentStatus: savedOrder.paymentStatus || "Pending", // Cập nhật paymentStatus
+      paymentStatus: "Pending", // Trạng thái thanh toán ban đầu là "Pending"
       paymentMethod: paymentMethod, // Thêm phương thức thanh toán
       useLoyaltyPoints: useLoyaltyPoints || false, // Lưu trạng thái sử dụng điểm tích lũy
       loyaltyPointsUsed,
@@ -210,7 +214,6 @@ const createOrderFromCart = async (req, res) => {
 
 const checkPayOSPaymentStatus = async (orderCode) => {
   try {
-    // Gọi API của PayOS để lấy trạng thái thanh toán
     const statusResponse = await payOS.getPaymentStatus({ orderCode });
 
     if (statusResponse && statusResponse.status === "success") {
@@ -219,8 +222,8 @@ const checkPayOSPaymentStatus = async (orderCode) => {
 
     return "pending";
   } catch (error) {
-    console.error("Lỗi khi kiểm tra trạng thái thanh toán PayOS:", error);
-    return "error"; // Trả về lỗi nếu không thể kiểm tra trạng thái
+    console.error("Lỗi kiểm tra trạng thái PayOS:", error);
+    return "error";
   }
 };
 

@@ -13,6 +13,9 @@ router.get("/payment-success", async (req, res) => {
   try {
     const { orderCode, status } = req.query;
 
+    // Debug: Kiểm tra thông tin từ query
+    console.log("orderCode:", orderCode, "status:", status);
+
     // Kiểm tra nếu status không hợp lệ
     if (!["PAID", "SUCCESS"].includes(status)) {
       return res.send("Giao dịch không thành công.");
@@ -25,6 +28,8 @@ router.get("/payment-success", async (req, res) => {
       return res.status(404).send("Không tìm thấy giao dịch.");
     }
 
+    console.log("PaymentTransaction found:", paymentTransaction);
+
     const cartId = paymentTransaction.cart?._id;
     if (!cartId) {
       return res.status(400).send("Không tìm thấy giỏ hàng liên kết.");
@@ -32,6 +37,7 @@ router.get("/payment-success", async (req, res) => {
 
     // Lấy useLoyaltyPoints từ PaymentTransaction
     const useLoyaltyPoints = paymentTransaction.useLoyaltyPoints;
+    console.log("useLoyaltyPoints:", useLoyaltyPoints);
 
     // Cập nhật trạng thái giao dịch
     paymentTransaction.transactionStatus = "Success";
