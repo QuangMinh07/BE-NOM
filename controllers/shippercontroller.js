@@ -1,4 +1,5 @@
 const ShipperInfo = require("../models/shipper");
+const Order = require("../models/storeOrder");
 
 const getShipperInfo = async (req, res) => {
   try {
@@ -35,6 +36,35 @@ const getShipperInfo = async (req, res) => {
   }
 };
 
+const getDeliveredOrdersByShipper = async (req, res) => {
+  try {
+    const { shipperId } = req.params; // Lấy shipperId từ params
+
+    // Lấy danh sách đơn hàng với trạng thái Delivered và shipperId
+    const deliveredOrders = await Order.find({
+      shipper: shipperId, // Sử dụng trường shipper trong đơn hàng
+      orderStatus: "Delivered",
+    })
+      .populate("store", "storeName storeAddress") // Populate thông tin cửa hàng
+      .populate("user", "fullName email") // Populate thông tin khách hàng
+      .sort({ deliveredDate: -1 }); // Sắp xếp theo ngày giao hàng mới nhất
+
+    if (!deliveredOrders || deliveredOrders.length === 0) {
+      return res.status(404).json({ message: "Không có đơn hàng nào đã giao" });
+    }
+
+    // Trả về danh sách đơn hàng
+    res.status(200).json({
+      success: true,
+      data: deliveredOrders,
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách đơn hàng đã giao:", error);
+    res.status(500).json({ message: "Lỗi server khi lấy danh sách đơn hàng đã giao", error });
+  }
+};
+
 module.exports = {
   getShipperInfo,
+  getDeliveredOrdersByShipper,
 };
