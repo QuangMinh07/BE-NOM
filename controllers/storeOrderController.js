@@ -5,7 +5,6 @@ const User = require("../models/user");
 const Chat = require("../models/chat");
 const PaymentTransaction = require("../models/PaymentTransaction");
 const { cancelOrder } = require("../controllers/OrderCancellationController"); // Import hàm hủy đơn hàng
-const { createPaymentTransaction } = require("../controllers/PaymentTransactioncontroller"); // Import hàm hủy đơn hàng
 
 const createOrderFromCart = async (req, res) => {
   try {
@@ -16,20 +15,23 @@ const createOrderFromCart = async (req, res) => {
     // Tìm giỏ hàng theo cartId và populate thông tin món ăn
     const cart = await Cart.findById(cartId)
       .populate({
-        path: "paymentTransaction", // Lấy thông tin từ paymentTransaction (đảm bảo trường này được populate)
-        select: "paymentMethod transactionAmount transactionDate transactionStatus paymentUrl orderCode useLoyaltyPoints", // Chọn các trường bạn cần
-      })
-      .populate({
         path: "items.food",
         select: "foodName price",
       })
       .populate({
         path: "items.combos.foods.foodId",
         select: "foodName price",
+      })
+      .populate({
+        path: "paymentTransaction", // Liên kết đến PaymentTransaction
+        select: "paymentMethod transactionAmount transactionDate transactionStatus paymentUrl orderCode", // Chọn các trường bạn cần lấy
       });
     if (!cart) {
       return res.status(404).json({ error: "Giỏ hàng không tồn tại." });
     }
+
+    // Log toàn bộ thông tin giỏ hàng và thông tin giao dịch thanh toán
+    console.log("Cart Details:", cart);
 
     // Kiểm tra thông tin người dùng
     const user = await User.findById(cart.user);
@@ -37,8 +39,9 @@ const createOrderFromCart = async (req, res) => {
       return res.status(404).json({ error: "Người dùng không tồn tại." });
     }
 
+    const paymentTransaction = cart.paymentTransaction; // Đảm bảo paymentTransaction đã được populate từ giỏ hàng
     // Kiểm tra phương thức thanh toán
-    if (!cart.paymentTransaction) {
+    if (!paymentTransaction) {
       return res.status(400).json({ error: "Vui lòng chọn phương thức thanh toán trước khi thanh toán." });
     }
 
@@ -64,40 +67,11 @@ const createOrderFromCart = async (req, res) => {
     }
 
     // Kiểm tra nếu phương thức thanh toán có trong giỏ hàng
-    const paymentMethod = cart.paymentTransaction?.paymentMethod || "Cash"; // Lấy từ paymentTransaction nếu có
+    const paymentMethod = paymentTransaction.paymentMethod; // Lấy phương thức thanh toán từ paymentTransaction
 
+    let paymentStatus = "Pending"; // Mặc định paymentStatus là "Pending"
     if (paymentMethod === "PayOS") {
-      console.log("Đang xử lý thanh toán qua PayOS...");
-
-      // Gọi hàm tạo giao dịch thanh toán qua PayOS
-      const paymentTransactionRes = await createPaymentTransaction(req, res);
-
-      if (!paymentTransactionRes || !paymentTransactionRes.paymentLink) {
-        return res.status(500).json({ error: "Không thể tạo giao dịch thanh toán qua PayOS." });
-      }
-
-      // Gắn URL thanh toán vào đơn hàng
-      savedOrder.paymentUrl = paymentTransactionRes.paymentLink;
-      await savedOrder.save();
-
-      // Thiết lập kiểm tra trạng thái thanh toán
-      setTimeout(async () => {
-        const order = await StoreOrder.findById(savedOrder._id);
-
-        if (order.paymentStatus === "Pending") {
-          // Kiểm tra trạng thái thanh toán PayOS
-          const payOSStatus = await checkPayOSPaymentStatus(order.orderCode);
-
-          if (payOSStatus === "success") {
-            order.paymentStatus = "Paid";
-            order.orderStatus = "Processing";
-            await order.save();
-            console.log(`Thanh toán thành công cho đơn hàng ${savedOrder._id}`);
-          } else {
-            console.log(`Thanh toán chưa hoàn tất cho đơn hàng ${savedOrder._id}`);
-          }
-        }
-      }, 3000); // Kiểm tra sau 3 giây
+      paymentStatus = "Paid"; // Nếu là PayOS thì paymentStatus là "Paid"
     }
 
     // Tạo danh sách món ăn từ giỏ hàng
@@ -146,7 +120,7 @@ const createOrderFromCart = async (req, res) => {
       receiverPhone: cart.receiverPhone, // Số điện thoại người nhận lấy từ giỏ hàng
       orderDate: new Date(), // Thời gian tạo đơn hàng là hiện tại
       orderStatus: "Pending", // Trạng thái đơn hàng ban đầu là "Pending"
-      paymentStatus: "Pending", // Trạng thái thanh toán ban đầu là "Pending"
+      paymentStatus: paymentStatus, // Trạng thái thanh toán ban đầu là "Pending"
       paymentMethod: paymentMethod, // Thêm phương thức thanh toán
       useLoyaltyPoints: useLoyaltyPoints || false, // Lưu trạng thái sử dụng điểm tích lũy
       loyaltyPointsUsed,
@@ -209,21 +183,6 @@ const createOrderFromCart = async (req, res) => {
   } catch (error) {
     console.error("Lỗi khi tạo đơn hàng từ giỏ hàng:", error);
     res.status(500).json({ error: "Lỗi khi tạo đơn hàng." });
-  }
-};
-
-const checkPayOSPaymentStatus = async (orderCode) => {
-  try {
-    const statusResponse = await payOS.getPaymentStatus({ orderCode });
-
-    if (statusResponse && statusResponse.status === "success") {
-      return "success";
-    }
-
-    return "pending";
-  } catch (error) {
-    console.error("Lỗi kiểm tra trạng thái PayOS:", error);
-    return "error";
   }
 };
 
