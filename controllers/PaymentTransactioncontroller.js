@@ -330,32 +330,5 @@ const updatePaymentTransaction = async (req, res) => {
   }
 };
 
-const checkPaymentStatus = async (req, res) => {
-  try {
-    const { orderCode } = req.params;
 
-    // Kiểm tra trạng thái giao dịch từ PayOS API hoặc hệ thống của bạn
-    const paymentTransaction = await PaymentTransaction.findOne({ orderCode });
-
-    if (!paymentTransaction) {
-      return res.status(404).json({ error: "Không tìm thấy giao dịch." });
-    }
-
-    // Kiểm tra trạng thái thanh toán
-    if (paymentTransaction.transactionStatus === "Success") {
-      return res.status(200).json({
-        transaction: paymentTransaction,
-        message: "Thanh toán thành công.",
-      });
-    } else {
-      return res.status(400).json({
-        message: "Thanh toán chưa hoàn tất hoặc bị lỗi.",
-      });
-    }
-  } catch (error) {
-    console.error("Lỗi khi kiểm tra trạng thái thanh toán:", error);
-    res.status(500).json({ error: "Lỗi kiểm tra trạng thái thanh toán." });
-  }
-};
-
-module.exports = { createPaymentTransaction, updatePaymentTransaction, checkPaymentStatus };
+module.exports = { createPaymentTransaction, updatePaymentTransaction };
