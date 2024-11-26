@@ -25,6 +25,14 @@ router.get("/payment-success", async (req, res) => {
       return res.status(404).send("Không tìm thấy giao dịch.");
     }
 
+    const cartId = paymentTransaction.cart?._id;
+    if (!cartId) {
+      return res.status(400).send("Không tìm thấy giỏ hàng liên kết.");
+    }
+
+    // Lấy useLoyaltyPoints từ PaymentTransaction
+    const useLoyaltyPoints = paymentTransaction.useLoyaltyPoints;
+
     // Cập nhật trạng thái giao dịch
     paymentTransaction.transactionStatus = "Success";
     await paymentTransaction.save();
