@@ -5,7 +5,7 @@ const User = require("../models/user");
 const Chat = require("../models/chat");
 const PaymentTransaction = require("../models/PaymentTransaction");
 const { cancelOrder } = require("../controllers/OrderCancellationController"); // Import hàm hủy đơn hàng
-const { createPaymentTransaction } = require("../controllers/OrderCancellationController"); // Import hàm hủy đơn hàng
+const { createPaymentTransaction } = require("../controllers/PaymentTransactioncontroller"); // Import hàm hủy đơn hàng
 
 const createOrderFromCart = async (req, res) => {
   try {
