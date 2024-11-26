@@ -4,6 +4,7 @@ const { createPaymentTransaction, updatePaymentTransaction } = require("../contr
 const { authenticateToken } = require("../middlewares/authMiddleware");
 const PaymentTransaction = require("../models/PaymentTransaction");
 const Cart = require("../models/cart");
+const { createOrderFromCart } = require("../controllers/storeOrderController"); // Import hàm hủy đơn hàng
 
 router.put("/update-payment/:cartId/:storeId", authenticateToken, updatePaymentTransaction);
 
@@ -28,13 +29,22 @@ router.get("/payment-success", async (req, res) => {
     paymentTransaction.transactionStatus = "Success";
     await paymentTransaction.save();
 
+    // Gọi hàm createOrderFromCart
+    await createOrderFromCart(
+      { params: { cartId }, body: { useLoyaltyPoints } }, // Truyền giá trị thực tế
+      {
+        status: () => ({
+          json: (data) => console.log(`Đơn hàng được tạo thành công:`, data),
+        }),
+      }
+    );
+
     res.send("Thanh toán thành công! Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.");
   } catch (error) {
     console.error("Lỗi khi xử lý thanh toán thành công:", error);
     res.status(500).send("Đã xảy ra lỗi khi xử lý thanh toán.");
   }
 });
-
 
 router.post("/webhook/payos", async (req, res) => {
   try {
