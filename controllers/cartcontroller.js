@@ -16,7 +16,7 @@ const addToCart = async (req, res) => {
     // Tìm giỏ hàng của người dùng theo userId và storeId
     let cart = await Cart.findOne({
       user: userId,
-      "items.store": food.store._id, // Kiểm tra chính xác storeId
+      "items.store": food.store._id,
     });
 
     if (!cart) {
@@ -24,10 +24,8 @@ const addToCart = async (req, res) => {
       cart = await Cart.findOne({ user: userId });
 
       if (cart && cart.items.length === 0) {
-        // Nếu giỏ hàng tồn tại nhưng rỗng (items.length === 0), sử dụng giỏ hàng cũ
         console.log("Using existing empty cart");
       } else {
-        // Nếu giỏ hàng hoàn toàn không tồn tại, tạo giỏ hàng mới
         cart = new Cart({ user: userId, items: [], totalPrice: 0 });
         console.log("Created a new cart for user");
       }
@@ -40,59 +38,93 @@ const addToCart = async (req, res) => {
       for (const combo of combos) {
         const comboFood = await Food.findById(combo.foodId);
         if (comboFood) {
-          comboTotalPrice += comboFood.price;
+          const effectivePrice = comboFood.isDiscounted && comboFood.discountedPrice ? comboFood.discountedPrice : comboFood.price || 0;
+          const comboQuantity = combo.quantity || 1;
+          comboTotalPrice += effectivePrice * comboQuantity;
           comboFoodDetails.push({
             foodId: comboFood._id,
-            price: comboFood.price,
+            price: effectivePrice,
+            quantity: comboQuantity,
           });
         }
       }
     }
 
-    // Kiểm tra nếu đã có món ăn giống hệt trong giỏ hàng
-    const isComboMatching = (existingCombos, newCombos) => {
-      if (existingCombos.length !== newCombos.length) return false;
-      return existingCombos.every((existingCombo, index) => {
-        return existingCombo.foodId.toString() === newCombos[index].foodId && existingCombo.price === newCombos[index].price;
+    const isItemMatching = (existingItem, newCombos, newQuantity) => {
+      const existingCombos = existingItem.combos.foods || [];
+
+      // Kiểm tra nếu số lượng món chính không khớp
+      if (existingItem.quantity !== newQuantity) {
+        return false;
+      }
+
+      // Kiểm tra nếu số lượng combo không khớp
+      if (existingCombos.length !== newCombos.length) {
+        return false;
+      }
+
+      // Sắp xếp và so sánh từng combo
+      const sortedExisting = [...existingCombos].sort((a, b) => a.foodId.toString().localeCompare(b.foodId.toString()));
+      const sortedNew = [...newCombos].sort((a, b) => a.foodId.toString().localeCompare(b.foodId.toString()));
+
+      return sortedExisting.every((existingCombo, index) => {
+        const newCombo = sortedNew[index];
+        return existingCombo.foodId.toString() === newCombo.foodId.toString() && existingCombo.price === newCombo.price && existingCombo.quantity === newCombo.quantity;
       });
     };
 
-    // Thêm hoặc cập nhật món ăn trong giỏ hàng
-    const existingItemIndex = cart.items.findIndex((item) => item.food.toString() === foodId && isComboMatching(item.combos.foods, comboFoodDetails));
+    // Tìm món trong giỏ hàng có id và các combo trùng khớp
+    // Kiểm tra nếu món đã tồn tại
+    const existingItemIndex = cart.items.findIndex((item) => {
+      return item.food.toString() === foodId && isItemMatching(item, comboFoodDetails, quantity);
+    });
 
     if (existingItemIndex !== -1) {
       // Nếu món ăn đã có trong giỏ, tăng số lượng
-      cart.items[existingItemIndex].quantity += quantity;
-      cart.items[existingItemIndex].price = cart.items[existingItemIndex].quantity * food.price;
-      // Cập nhật combo nếu có
+      const existingItem = cart.items[existingItemIndex];
+      existingItem.quantity += quantity;
+      existingItem.price = existingItem.quantity * food.price;
+
       if (combos && combos.length > 0) {
-        cart.items[existingItemIndex].combos.foods = combos.map((combo) => combo.foodId);
-        cart.items[existingItemIndex].combos.totalQuantity += combos.length;
-        cart.items[existingItemIndex].combos.totalPrice += comboTotalPrice;
+        // Cập nhật số lượng combo
+        existingItem.combos.foods = existingItem.combos.foods.map((combo, index) => ({
+          ...combo,
+          quantity: combo.quantity + (comboFoodDetails[index]?.quantity || 0),
+        }));
+        existingItem.combos.totalQuantity = existingItem.combos.foods.reduce((total, combo) => total + combo.quantity, 0);
+        existingItem.combos.totalPrice = existingItem.combos.foods.reduce((total, combo) => total + combo.price * combo.quantity, 0);
       }
     } else {
       // Nếu món ăn chưa có trong giỏ, thêm món mới
       cart.items.push({
         food: food._id,
-        store: food.store._id, // Liên kết món ăn với cửa hàng
-        quantity,
-        price: food.price * quantity,
+        store: food.store._id,
+        quantity: quantity || 1,
+        price: (food.isDiscounted && food.discountedPrice ? food.discountedPrice : food.price || 0) * (quantity || 1),
+        originalPrice: food.price || 0,
+        discountedPrice: food.isDiscounted && food.discountedPrice ? food.discountedPrice : null,
         combos:
           combos && combos.length > 0
             ? {
                 foods: comboFoodDetails,
                 totalQuantity: combos.length,
-                totalPrice: comboTotalPrice,
+                totalPrice: comboTotalPrice || 0,
               }
             : { foods: [], totalQuantity: 0, totalPrice: 0 },
-        totalPrice: food.price * quantity + comboTotalPrice,
+        totalPrice: (food.isDiscounted && food.discountedPrice ? food.discountedPrice : food.price || 0) * (quantity || 1) + (comboTotalPrice || 0),
       });
     }
 
-    // Cập nhật tổng số tiền trong giỏ hàng
-    cart.totalPrice = cart.items.reduce((total, item) => total + item.price + (item.combos?.totalPrice || 0), 0);
+    // Cập nhật tổng giá trị giỏ hàng
+    cart.totalPrice = cart.items.reduce((total, item) => {
+      const mainFoodPrice = item.discountedPrice || item.originalPrice;
+      const itemQuantity = item.quantity || 0;
+      const comboTotal = item.combos?.totalPrice || 0;
 
-    // Lưu lại giỏ hàng sau khi cập nhật
+      return total + (mainFoodPrice || 0) * itemQuantity + comboTotal;
+    }, 0);
+
+    // Lưu giỏ hàng
     await cart.save();
 
     res.status(200).json({ message: "Thêm vào giỏ hàng thành công!", cart });
@@ -351,6 +383,7 @@ const getCartByStoreId = async (req, res) => {
           foodId: comboFood.foodId._id,
           foodName: comboFood.foodId.foodName, // Lấy thêm foodName từ combo
           price: comboFood.price,
+          quantity: comboFood.quantity, // Lấy số lượng của món trong combo
         })),
       },
     }));
@@ -448,23 +481,34 @@ const updateCartItem = async (req, res) => {
     }
 
     const item = cart.items[itemIndex];
-    const oldQuantity = item.quantity;
-    item.quantity = quantity;
-    item.price = quantity * item.food.price;
+    // const oldQuantity = item.quantity;
+    // Lấy giá đúng (ưu tiên giá giảm nếu có)
+    const foodPrice = item.food.discountedPrice ? item.food.discountedPrice : item.food.price;
 
+    // Cập nhật số lượng và giá
+    item.quantity = quantity;
+    item.price = quantity * foodPrice;
+
+    // Xử lý combos: tăng hoặc giảm số lượng các món trong combo theo số lượng món chính
     if (item.combos && item.combos.foods.length > 0) {
-      const quantityChange = quantity - oldQuantity;
-      item.combos.totalQuantity += quantityChange;
+      item.combos.totalQuantity = item.quantity;
 
       for (const combo of item.combos.foods) {
-        combo.price += (quantityChange * combo.price) / oldQuantity;
+        const comboPrice = combo.isDiscounted && combo.discountedPrice ? combo.discountedPrice : combo.price;
+
+        // Cập nhật giá và số lượng cho từng món trong combo
+        combo.price = comboPrice; // Giá của 1 phần trong combo
+        combo.quantity = item.quantity; // Đồng bộ số lượng món combo với món chính
+        combo.totalPrice = comboPrice * item.quantity; // Tổng giá theo số lượng món chính
       }
 
-      item.combos.totalPrice = item.combos.foods.reduce((total, combo) => total + combo.price, 0);
+      item.combos.totalPrice = item.combos.foods.reduce((total, combo) => total + combo.totalPrice, 0);
     }
 
+    // Tính lại tổng giá cho món trong giỏ hàng (bao gồm món chính và combos)
     item.totalPrice = item.price + (item.combos?.totalPrice || 0);
 
+    // Tính tổng giá toàn bộ giỏ hàng
     cart.totalPrice = cart.items.reduce((total, item) => total + item.totalPrice, 0);
 
     cart.updatedAt = Date.now();

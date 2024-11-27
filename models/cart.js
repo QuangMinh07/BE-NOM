@@ -39,6 +39,11 @@ const CartSchema = new mongoose.Schema({
               type: Number, // Giá của món ăn trong combo
               required: true,
             },
+            quantity: {
+              type: Number, // Số lượng món ăn trong combo
+              required: true,
+              default: 1, // Giá trị mặc định là 1
+            },
           },
         ],
         totalQuantity: {

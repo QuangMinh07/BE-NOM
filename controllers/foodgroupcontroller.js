@@ -208,7 +208,25 @@ const addComboToFoodGroup = async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy nhóm món để ghép." });
     }
 
-    mainGroup.comboGroups = [...new Set([...mainGroup.comboGroups, ...validComboGroups.map((group) => group._id)])];
+    // Xử lý ghi đè hoặc thêm mới comboGroups
+    const updatedComboGroups = validComboGroups.reduce(
+      (result, comboGroup) => {
+        // Kiểm tra nếu comboGroup đã tồn tại
+        const existingIndex = result.findIndex((group) => group.equals(comboGroup._id));
+        if (existingIndex !== -1) {
+          // Ghi đè thông tin nhóm món đã tồn tại
+          result[existingIndex] = comboGroup._id;
+        } else {
+          // Thêm nhóm mới
+          result.push(comboGroup._id);
+        }
+        return result;
+      },
+      [...mainGroup.comboGroups]
+    ); // Khởi tạo với danh sách hiện tại
+
+    // Cập nhật danh sách comboGroups
+    mainGroup.comboGroups = updatedComboGroups;
 
     // Lưu nhóm món đã cập nhật
     const updatedGroup = await mainGroup.save();

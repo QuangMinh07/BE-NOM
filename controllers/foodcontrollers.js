@@ -353,16 +353,21 @@ const getFoodWithCombo = async (req, res) => {
     }
 
     const foodGroup = await FoodGroup.findById(food.foodGroup._id).populate("comboGroups");
-    const comboFoods = [];
 
+    // Tạo cấu trúc dữ liệu theo nhóm combo
+    const comboData = [];
     for (const comboGroup of foodGroup.comboGroups) {
       const foodsInComboGroup = await Food.find({ foodGroup: comboGroup._id });
-      comboFoods.push(...foodsInComboGroup);
+
+      comboData.push({
+        groupName: comboGroup.groupName, // Tên nhóm combo
+        foods: foodsInComboGroup, // Danh sách món ăn thuộc nhóm combo
+      });
     }
 
     return res.status(200).json({
       food,
-      comboFoods,
+      combos: comboData, // Trả về cấu trúc dữ liệu theo nhóm combo
     });
   } catch (error) {
     console.error("Error fetching food with combo:", error);
