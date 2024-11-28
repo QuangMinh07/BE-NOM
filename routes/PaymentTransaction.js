@@ -18,8 +18,12 @@ router.get("/payment-success", async (req, res) => {
     console.log("orderCode:", orderCode, "status:", status);
 
     // Kiểm tra nếu status không hợp lệ
+    // if (!["PAID", "SUCCESS"].includes(status)) {
+    //   return res.send("Giao dịch không thành công.");
+    // }
+
     if (!["PAID", "SUCCESS"].includes(status)) {
-      return res.send("Giao dịch không thành công.");
+      return res.redirect("myapp://payment-failed");
     }
 
     // Tìm giao dịch dựa trên orderCode
@@ -54,7 +58,21 @@ router.get("/payment-success", async (req, res) => {
       }
     );
 
-    res.send("Thanh toán thành công! Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.");
+    res.send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Payment Success</title>
+      </head>
+      <body style="text-align: center; margin-top: 20%;">
+        <h1>Thanh toán thành công! Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.</h1>
+        <button onclick="window.location.href='myapp://payment-success'" style="padding: 10px 20px; font-size: 16px; margin-top: 20px; cursor: pointer; background-color: #E53935; color: #fff; border: none; border-radius: 5px;">Quay về ứng dụng</button>
+      </body>
+      </html>
+      `);
+    return res.redirect("myapp://payment-success");
   } catch (error) {
     console.error("Lỗi khi xử lý thanh toán thành công:", error);
     res.status(500).send("Đã xảy ra lỗi khi xử lý thanh toán.");

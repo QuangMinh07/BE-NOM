@@ -115,14 +115,31 @@ const addToCart = async (req, res) => {
       });
     }
 
+    const itemPrice = (food.isDiscounted && food.discountedPrice ? food.discountedPrice : food.price || 0) * (quantity || 1);
+    const comboTotal = comboTotalPrice || 0;
+
+    if (!Number.isFinite(itemPrice + comboTotal)) {
+      throw new Error("Invalid item price or combo total.");
+    }
+
+    cart.items.forEach((item) => {
+      console.log("Item price:", item.price);
+      console.log("Item quantity:", item.quantity);
+      console.log("Item combos totalPrice:", item.combos?.totalPrice || 0);
+      console.log("Item totalPrice:", item.totalPrice);
+    });
+
+    // Cập nhật tổng giá trị giỏ hàng
     // Cập nhật tổng giá trị giỏ hàng
     cart.totalPrice = cart.items.reduce((total, item) => {
-      const mainFoodPrice = item.discountedPrice || item.originalPrice;
-      const itemQuantity = item.quantity || 0;
-      const comboTotal = item.combos?.totalPrice || 0;
-
-      return total + (mainFoodPrice || 0) * itemQuantity + comboTotal;
+      return total + (item.totalPrice || 0); // Lấy giá trị `totalPrice` của từng item
     }, 0);
+
+    // Kiểm tra nếu totalPrice không hợp lệ
+    if (!Number.isFinite(cart.totalPrice)) {
+      console.error("Invalid totalPrice:", cart.totalPrice);
+      cart.totalPrice = 0; // Gán giá trị mặc định nếu lỗi
+    }
 
     // Lưu giỏ hàng
     await cart.save();
