@@ -286,4 +286,31 @@ const removeComboFromFoodGroup = async (req, res) => {
   }
 };
 
-module.exports = { addFoodGroup, getFoodGroups, getFoodGroupByFoodIdAndStoreId, deleteFoodGroup, updateFoodGroupName, addComboToFoodGroup, removeComboFromFoodGroup };
+const searchFoodGroups = async (req, res) => {
+  try {
+    const { groupName, storeId } = req.query;
+
+    const query = {};
+
+    if (groupName) {
+      query.groupName = { $regex: groupName, $options: "i" }; // Tìm kiếm không phân biệt hoa thường
+    }
+
+    if (storeId) {
+      query.store = storeId; // Chỉ tìm nhóm món thuộc cửa hàng hiện tại
+    }
+
+    const foodGroups = await FoodGroup.find(query).populate("store", "storeName");
+
+    if (!foodGroups.length) {
+      return res.status(200).json({ success: true, data: [], msg: "Không tìm thấy nhóm món ăn nào." });
+    }
+
+    return res.status(200).json({ success: true, data: foodGroups });
+  } catch (error) {
+    console.error("Lỗi tìm kiếm nhóm món ăn:", error.message);
+    return res.status(500).json({ success: false, msg: "Lỗi máy chủ.", error: error.message });
+  }
+};
+
+module.exports = { addFoodGroup, getFoodGroups, getFoodGroupByFoodIdAndStoreId, deleteFoodGroup, updateFoodGroupName, addComboToFoodGroup, removeComboFromFoodGroup, searchFoodGroups };

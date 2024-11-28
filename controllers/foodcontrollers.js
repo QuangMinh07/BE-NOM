@@ -448,6 +448,33 @@ const toggleDiscountAcceptance = async (req, res) => {
   }
 };
 
+const searchFoods = async (req, res) => {
+  try {
+    const { foodName, storeId } = req.query;
+
+    const query = {};
+
+    if (foodName) {
+      query.foodName = { $regex: foodName, $options: "i" }; // Tìm kiếm không phân biệt hoa thường
+    }
+
+    if (storeId) {
+      query.store = storeId; // Chỉ tìm món ăn thuộc cửa hàng hiện tại
+    }
+
+    const foods = await Food.find(query).populate("store", "storeName").populate("foodGroup", "groupName");
+
+    if (!foods.length) {
+      return res.status(200).json({ success: true, data: [], msg: "Không tìm thấy món ăn nào." });
+    }
+
+    return res.status(200).json({ success: true, data: foods });
+  } catch (error) {
+    console.error("Lỗi tìm kiếm món ăn:", error.message);
+    return res.status(500).json({ success: false, msg: "Lỗi máy chủ.", error: error.message });
+  }
+};
+
 module.exports = {
   addFoodItem,
   getFoodById,
@@ -459,4 +486,5 @@ module.exports = {
   getFoodWithCombo,
   addDiscountToFood,
   toggleDiscountAcceptance,
+  searchFoods,
 };
