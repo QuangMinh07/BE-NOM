@@ -315,10 +315,10 @@ const loginUser = async (req, res, next) => {
     }
 
     // Lưu `expoPushToken` vào tài khoản khách hàng
-    if (expoPushToken) {
-      user.expoPushToken = expoPushToken; // Cập nhật expoPushToken
-      await user.save();
-    }
+    // if (expoPushToken) {
+    //   user.expoPushToken = expoPushToken; // Cập nhật expoPushToken
+    //   await user.save();
+    // }
 
     // Nếu người dùng là "staff", kiểm tra trạng thái "isActive" và lấy thông tin storeId
     let isActive = true; // Mặc định là true nếu không phải staff
@@ -392,7 +392,7 @@ const loginUser = async (req, res, next) => {
         storeId, // Trả về storeId nếu là nhân viên
         storeIds, // Trả về mảng storeIds nếu là staff hoặc seller
         isOnline: user.isOnline, // Trả về trạng thái online
-        expoPushToken: user.expoPushToken, // Trả về expoPushToken
+        // expoPushToken: user.expoPushToken, // Trả về expoPushToken
       },
     });
   } catch (error) {
