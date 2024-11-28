@@ -23,7 +23,7 @@ router.get("/payment-success", async (req, res) => {
     // }
 
     if (!["PAID", "SUCCESS"].includes(status)) {
-      return res.redirect("myapp://payment-failed");
+      return res.redirect("exp://192.168.1.60:8081/--/payment-failed");
     }
 
     // Tìm giao dịch dựa trên orderCode
@@ -68,11 +68,10 @@ router.get("/payment-success", async (req, res) => {
       </head>
       <body style="text-align: center; margin-top: 20%;">
         <h1>Thanh toán thành công! Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi.</h1>
-        <button onclick="window.location.href='myapp://payment-success'" style="padding: 10px 20px; font-size: 16px; margin-top: 20px; cursor: pointer; background-color: #E53935; color: #fff; border: none; border-radius: 5px;">Quay về ứng dụng</button>
+        <button onclick="window.location.href='exp://192.168.1.60:8081/--/payment-success'" style="padding: 10px 20px; font-size: 16px; margin-top: 20px; cursor: pointer; background-color: #E53935; color: #fff; border: none; border-radius: 5px;">Quay về ứng dụng</button>
       </body>
       </html>
-      `);
-    return res.redirect("myapp://payment-success");
+    `);
   } catch (error) {
     console.error("Lỗi khi xử lý thanh toán thành công:", error);
     res.status(500).send("Đã xảy ra lỗi khi xử lý thanh toán.");
