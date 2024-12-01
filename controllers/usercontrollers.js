@@ -11,6 +11,7 @@ const ShipperInfo = require("../models/shipper");
 // const firebase = require("../firebase");
 const { rejectSeller } = require("../controllers/admincontroller");
 const { rejectShipper } = require("../controllers/admincontroller");
+const { sendVerificationCode, verifyCode } = require("../utils/twilioService"); // Import Twilio service
 
 const changePassword = async (req, res) => {
   try {
@@ -252,7 +253,7 @@ const registerUser = async (req, res, next) => {
     // Không gọi hàm gửi mã xác thực tại đây
     res.status(201).json({
       success: true,
-      message: "Đăng ký thành công! Bạn có thể yêu cầu mã xác thực qua API verifyEmail.",
+      message: "Đăng ký thành công! Bạn hãy chọn xác thực OTP hoặc Email.",
     });
   } catch (error) {
     next(error);
@@ -481,6 +482,49 @@ const verifyEmail = async (req, res, next) => {
   }
 };
 
+const sendPhoneOtp = async (req, res, next) => {
+  console.log("Request body:", req.body); // Kiểm tra giá trị nhận được
+  const { phone } = req.body;
+
+  // Kiểm tra xem số điện thoại đã được cung cấp hay chưa
+  if (!phone) {
+    return next(errorHandler(400, "Số điện thoại là bắt buộc"));
+  }
+
+  try {
+    // Tìm người dùng dựa trên số điện thoại
+    const user = await User.findOne({ phoneNumber: phone });
+
+    if (!user) {
+      return next(errorHandler(400, "Số điện thoại không tồn tại"));
+    }
+
+    console.log("Sending OTP to:", phone);
+    // Gửi mã OTP qua Twilio
+    const status = await sendVerificationCode(phone);
+
+    if (status === "pending") {
+      return res.status(200).json({
+        success: true,
+        message: "Mã OTP đã được gửi qua SMS",
+      });
+    }
+
+    // Trường hợp không thành công
+    return res.status(500).json({
+      success: false,
+      message: "Không thể gửi mã OTP, vui lòng thử lại sau",
+    });
+  } catch (error) {
+    console.error("Error in sendPhoneOtp:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Đã xảy ra lỗi khi gửi mã OTP",
+      error: error.message,
+    });
+  }
+};
+
 const verifyPhoneOtp = async (req, res, next) => {
   const { phone, verificationCode } = req.body;
 
@@ -501,27 +545,31 @@ const verifyPhoneOtp = async (req, res, next) => {
       return next(errorHandler(400, "Tài khoản đã được xác thực"));
     }
 
-    // Kiểm tra mã OTP và thời gian hết hạn
-    if (user.verificationCode !== verificationCode) {
-      return next(errorHandler(400, "Mã xác thực không đúng"));
-    }
-
     if (user.verificationCodeExpiry < Date.now()) {
       return next(errorHandler(400, "Mã xác thực đã hết hạn"));
     }
 
-    // Nếu tất cả điều kiện hợp lệ, đánh dấu tài khoản đã xác thực
-    user.isVerified = true;
-    user.verificationCode = undefined;
-    user.verificationCodeExpiry = undefined;
-    await user.save();
+    // Kiểm tra mã OTP qua Twilio
+    const status = await verifyCode(phone, verificationCode);
 
-    res.status(200).json({
-      success: true,
-      message: "Xác thực số điện thoại thành công! Bạn có thể đăng nhập.",
-    });
+    if (status === "approved") {
+      // Đánh dấu tài khoản là đã xác thực
+      user.isVerified = true;
+      user.verificationCode = undefined; // Xóa mã cũ (nếu có)
+      user.verificationCodeExpiry = undefined; // Xóa thời gian hết hạn (nếu có)
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Xác thực số điện thoại thành công! Bạn có thể đăng nhập.",
+      });
+    } else {
+      // Nếu mã OTP không hợp lệ hoặc đã hết hạn
+      return next(errorHandler(400, "Mã xác thực không hợp lệ"));
+    }
   } catch (error) {
-    next(error);
+    console.error("Error in verifyPhoneOtp:", error);
+    return next(errorHandler(500, "Đã xảy ra lỗi khi xác minh mã OTP"));
   }
 };
 
@@ -735,10 +783,17 @@ const resendVerificationCodeForPhone = async (req, res, next) => {
     user.verificationCodeExpiry = newVerificationCodeExpiry;
     await user.save();
 
+    // Gửi mã OTP qua Twilio
+    const sendOtpStatus = await sendVerificationCode(phone);
+
+    if (sendOtpStatus !== "pending") {
+      return next(errorHandler(500, "Không thể gửi mã OTP qua SMS, vui lòng thử lại sau."));
+    }
+
     // Trả về phản hồi thành công
     res.status(200).json({
       success: true,
-      message: "Mã xác thực đã được tạo mới. Vui lòng kiểm tra SMS của bạn.",
+      message: "Mã xác thực đã được gửi qua SMS. Vui lòng kiểm tra điện thoại của bạn.",
     });
   } catch (error) {
     console.error("Error in resendVerificationCodeForPhone:", error);
@@ -980,4 +1035,5 @@ module.exports = {
   resendVerificationCodeForPhone,
   sendverifyEmail,
   getProfileById,
+  sendPhoneOtp,
 };
