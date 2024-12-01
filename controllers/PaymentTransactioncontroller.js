@@ -330,5 +330,22 @@ const updatePaymentTransaction = async (req, res) => {
   }
 };
 
+const deletePaymentTransaction = async (orderCode) => {
+  try {
+    const transaction = await PaymentTransaction.findOne({ orderCode });
 
-module.exports = { createPaymentTransaction, updatePaymentTransaction };
+    if (!transaction) {
+      throw new Error("Không tìm thấy giao dịch thanh toán với orderCode đã cung cấp.");
+    }
+
+    // Xóa giao dịch thanh toán
+    await PaymentTransaction.deleteOne({ _id: transaction._id });
+
+    return { success: true, message: "Phương thức thanh toán đã được xóa thành công." };
+  } catch (error) {
+    console.error("Lỗi khi xóa phương thức thanh toán:", error.message);
+    return { success: false, message: error.message };
+  }
+};
+
+module.exports = { createPaymentTransaction, updatePaymentTransaction, deletePaymentTransaction };
