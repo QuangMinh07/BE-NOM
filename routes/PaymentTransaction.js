@@ -64,6 +64,8 @@ router.get("/payment-success", async (req, res) => {
       return res.status(404).send("Không tìm thấy đơn hàng.");
     }
 
+    console.log("Order found:", order);
+
     // Hiển thị thông tin đơn hàng
     const orderDetailsHTML = `
       <div style="max-width: 800px; margin: auto; font-family: Arial, sans-serif; line-height: 1.6; border: 1px solid #ddd; border-radius: 8px; padding: 20px;">
@@ -103,6 +105,7 @@ router.get("/payment-success", async (req, res) => {
     `);
   } catch (error) {
     console.error("Lỗi khi xử lý thanh toán thành công:", error);
+    console.error("Chi tiết lỗi:", error.stack); // Log chi tiết lỗi
     res.status(500).send("Đã xảy ra lỗi khi xử lý thanh toán.");
   }
 });
