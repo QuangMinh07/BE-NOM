@@ -63,30 +63,37 @@ router.get("/payment-success", async (req, res) => {
       return res.status(404).send("Không tìm thấy thông tin giỏ hàng.");
     }
 
+    // Tạo nội dung HTML hiển thị thông tin đơn hàng
     const orderDetailsHTML = `
     <div style="max-width: 800px; margin: auto; font-family: Arial, sans-serif; line-height: 1.6; border: 1px solid #ddd; border-radius: 8px; padding: 20px;">
       <h1 style="text-align: center; color: #E53935;">Thanh toán thành công!</h1>
-      <h2>Thông tin đơn hàng:</h2>
+      <h2 style="margin-bottom: 20px;">Thông tin đơn hàng:</h2>
       <p><strong>Tên người đặt:</strong> ${cartSnapshot.receiverName}</p>
       <p><strong>Số điện thoại:</strong> ${cartSnapshot.receiverPhone}</p>
       <p><strong>Địa chỉ giao hàng:</strong> ${cartSnapshot.deliveryAddress}</p>
-      <h3>Chi tiết món ăn:</h3>
-      <ul>
+      
+      <h3 style="margin-top: 30px;">Chi tiết món ăn:</h3>
+      <ul style="padding: 0; margin: 0;">
         ${cartSnapshot.items
           .map(
             (item) => `
-          <li>
-            <strong>${item.foodName}</strong> - 
-            Số lượng: ${item.quantity} - 
-            Giá: ${item.price.toLocaleString("vi-VN")} VND
+          <li style="list-style-type: none; margin-bottom: 15px; border-bottom: 1px dashed #ddd; padding-bottom: 10px;">
+            <p><strong>Tên món:</strong> ${item.foodName}</p>
+            <p><strong>Cửa hàng:</strong> ${item.storeName}</p>
+            <p><strong>Số lượng:</strong> ${item.quantity}</p>
+            <p><strong>Giá:</strong> <span style="float: right;">${item.price.toLocaleString("vi-VN")} VND</span></p>
             ${
               item.combos
                 ? `
-              <ul>
-                <li><strong>Combo:</strong> Tổng giá: ${item.combos.totalPrice.toLocaleString("vi-VN")} VND</li>
-                ${item.combos.foods.map((combo) => `<li>${combo.foodName} - ${combo.price.toLocaleString("vi-VN")} VND</li>`).join("")}
-              </ul>
-            `
+                <div style="margin-top: 10px; padding-left: 15px;">
+                  <p><strong>Combo:</strong></p>
+                  <p>- Tổng giá: <span style="float: right;">${item.combos.totalPrice.toLocaleString("vi-VN")} VND</span></p>
+                  <p>- Tổng số lượng: ${item.combos.totalQuantity}</p>
+                  <ul>
+                    ${item.combos.foods.map((combo) => `<li>- ${combo.foodName}: <span style="float: right;">${combo.price.toLocaleString("vi-VN")} VND</span></li>`).join("")}
+                  </ul>
+                </div>
+              `
                 : ""
             }
           </li>
@@ -94,11 +101,15 @@ router.get("/payment-success", async (req, res) => {
           )
           .join("")}
       </ul>
-      <p><strong>Tổng thanh toán:</strong> ${cartSnapshot.totalPrice.toLocaleString("vi-VN")} VND</p>
-      <button onclick="window.location.href='exp://192.168.1.66:8081/--/payment-success'" 
-        style="padding: 10px 20px; font-size: 16px; margin-top: 20px; cursor: pointer; background-color: #E53935; color: #fff; border: none; border-radius: 5px;">
-        Quay về ứng dụng
-      </button>
+
+      <p style="font-weight: bold; margin-top: 20px; text-align: right;">Tổng thanh toán: <span style="font-size: 1.2em;">${cartSnapshot.totalPrice.toLocaleString("vi-VN")} VND</span></p>
+
+      <div style="text-align: center; margin-top: 40px;">
+        <button onclick="window.location.href='exp://192.168.1.66:8081/--/payment-success'" 
+          style="padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #E53935; color: #fff; border: none; border-radius: 5px;">
+          Quay về ứng dụng
+        </button>
+      </div>
     </div>
   `;
 
@@ -110,7 +121,7 @@ router.get("/payment-success", async (req, res) => {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Payment Success</title>
     </head>
-    <body>
+    <body style="background-color: #f9f9f9; margin: 0; padding: 20px;">
       ${orderDetailsHTML}
     </body>
     </html>
