@@ -22,14 +22,7 @@ const createPaymentTransaction = async (req, res) => {
     const { paymentMethod, useLoyaltyPoints } = req.body;
     const { cartId, storeId } = req.params;
 
-    const cart = await Cart.findOne({ _id: cartId, "items.store": storeId })
-      .populate({
-        path: "items.food",
-        select: "foodName",
-      })
-      .populate("paymentTransaction")
-      .populate("user", "name email phone loyaltyPoints");
-
+    const cart = await Cart.findOne({ _id: cartId, "items.store": storeId }).populate("items.food", "foodName price").populate("paymentTransaction").populate("user", "name email phone loyaltyPoints").populate("items.store", "storeName").populate("items.combos.foods.foodId", "foodName price");
     if (!cart) {
       return res.status(404).json({ error: "Giỏ hàng hoặc cửa hàng không tồn tại." });
     }
@@ -167,6 +160,28 @@ const createPaymentTransaction = async (req, res) => {
       paymentUrl,
       orderCode,
       useLoyaltyPoints, // Thêm trường này
+      cartSnapshot: {
+        totalPrice: cart.totalPrice,
+        deliveryAddress: cart.deliveryAddress,
+        receiverName: cart.receiverName,
+        receiverPhone: cart.receiverPhone,
+        items: cart.items.map((item) => ({
+          foodName: item.food.foodName,
+          storeName: item.store.storeName,
+          quantity: item.quantity,
+          price: item.price,
+          combos: item.combos
+            ? {
+                totalPrice: item.combos.totalPrice,
+                totalQuantity: item.combos.totalQuantity,
+                foods: item.combos.foods.map((comboFood) => ({
+                  foodName: comboFood.foodId.foodName,
+                  price: comboFood.price,
+                })),
+              }
+            : null,
+        })),
+      },
     });
 
     const savedTransaction = await newTransaction.save();

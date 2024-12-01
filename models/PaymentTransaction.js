@@ -38,8 +38,31 @@ const paymentTransactionSchema = new Schema({
     required: true,
     unique: true,
   },
-
   useLoyaltyPoints: { type: Boolean, default: false }, // Thêm trường này
+  cartSnapshot: {
+    totalPrice: Number,
+    deliveryAddress: String,
+    receiverName: String,
+    receiverPhone: String,
+    items: [
+      {
+        foodName: String,
+        storeName: String,
+        quantity: Number,
+        price: Number,
+        combos: {
+          totalPrice: Number,
+          totalQuantity: Number,
+          foods: [
+            {
+              foodName: String,
+              price: Number,
+            },
+          ],
+        },
+      },
+    ],
+  },
 });
 
 const PaymentTransaction = mongoose.model("PaymentTransaction", paymentTransactionSchema);
