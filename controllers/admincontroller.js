@@ -791,6 +791,9 @@ const getAllOrders = async (req, res) => {
       orderStatus: order.orderStatus,
       paymentStatus: order.paymentStatus,
       paymentMethod: order.paymentMethod,
+      loyaltyPointsUsed: order.loyaltyPointsUsed || 0, // Điểm trung thành đã sử dụng
+      useLoyaltyPoints: order.useLoyaltyPoints || false, // Sử dụng điểm trung thành không
+      isNotificationSent: order.isNotificationSent,
     }));
 
     // Trả về tất cả đơn hàng, tổng số lượng đơn hàng và tổng giá trị
@@ -1337,6 +1340,131 @@ const getRevenueByMonthAndYear = async (req, res) => {
   }
 };
 
+const getReviewByOrderId = async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    // Tìm đánh giá dựa trên orderId
+    const review = await OrderReview.findOne({ order: orderId })
+      .populate({
+        path: "user",
+        select: "fullName email",
+      })
+      .populate({
+        path: "store",
+        select: "storeName",
+      })
+      .populate({
+        path: "replies.user",
+        select: "fullName email",
+      });
+
+    // Nếu không tìm thấy đánh giá
+    if (!review) {
+      return res.status(404).json({ message: "Không tìm thấy đánh giá cho đơn hàng này." });
+    }
+
+    // Chuẩn bị dữ liệu trả về
+    const formattedReview = {
+      _id: review._id,
+      user: {
+        userId: review.user?._id || null,
+        fullName: review.user?.fullName || "Ẩn danh",
+        email: review.user?.email || "Không rõ",
+      },
+      store: {
+        storeId: review.store?._id || null,
+        storeName: review.store?.storeName || "Không rõ",
+      },
+      rating: review.rating,
+      comment: review.comment,
+      reviewDate: review.reviewDate,
+      replies: review.replies.map((reply) => ({
+        _id: reply._id,
+        replyText: reply.replyText,
+        replyDate: reply.replyDate,
+        user: reply.user?.fullName || "Ẩn danh",
+      })),
+    };
+
+    res.status(200).json({
+      message: "Lấy thông tin đánh giá thành công",
+      review: formattedReview,
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy thông tin đánh giá:", error);
+    res.status(500).json({ message: "Lỗi server khi lấy thông tin đánh giá", error: error.message });
+  }
+};
+
+const sendOrderNotificationToStore = async (orderId) => {
+  try {
+    // Lấy thông tin đơn hàng
+    const order = await StoreOrder.findById(orderId)
+      .populate("store", "storeName owner") // Lấy tên cửa hàng và thông tin owner
+      .populate("foods", "foodName quantity price") // Lấy thông tin món ăn
+      .populate("user", "fullName email") // Lấy thông tin người đặt hàng
+      .populate("cartSnapshot"); // Lấy thông tin cart snapshot nếu có
+
+    if (!order) {
+      console.error("Không tìm thấy đơn hàng với ID:", orderId);
+      return;
+    }
+
+    // Lấy thông tin cửa hàng từ đơn hàng
+    const store = await Store.findById(order.store._id).populate("owner", "email fullName");
+    if (!store) {
+      console.error("Không tìm thấy cửa hàng với ID:", order.store._id);
+      return;
+    }
+
+    // Lấy thông tin chủ cửa hàng
+    const owner = store.owner;
+    if (!owner || !owner.email) {
+      console.error("Không tìm thấy email của chủ cửa hàng:", store._id);
+      return;
+    }
+
+    // Chuẩn bị nội dung email
+    const subject = `Thông báo: Cập nhật đơn hàng ${orderId}`;
+    const message = `
+      Kính gửi ${owner.fullName},
+
+      Cửa hàng "${store.storeName}" vừa nhận được thông báo liên quan đến đơn hàng với chi tiết như sau:
+
+      - Mã đơn hàng: ${order._id}
+      - Ngày đặt hàng: ${new Date(order.orderDate).toLocaleDateString()}
+      - Tổng tiền: ${order.totalAmount.toLocaleString("vi-VN")} VND
+      - Phương thức thanh toán: ${order.paymentMethod}
+      - Trạng thái thanh toán: ${order.paymentStatus}
+      - Trạng thái đơn hàng: ${order.orderStatus}
+
+      Thông tin người đặt hàng:
+      - Họ và tên: ${order.user?.fullName || "Không rõ"}
+      - Email: ${order.user?.email || "Không rõ"}
+
+      Danh sách món ăn:
+      ${order.foods.map((food, index) => `  ${index + 1}. ${food.foodName} - Số lượng: ${food.quantity} - Giá: ${food.price.toLocaleString("vi-VN")} VND`).join("\n")}
+
+      Địa chỉ giao hàng: ${order.cartSnapshot?.deliveryAddress || "Không rõ"}
+
+      Tổng tiền admin chuyển khoản cho cửa hàng của bạn: ${order.totalAmount.toLocaleString("vi-VN")} VND
+
+      Nếu có bất kỳ câu hỏi nào, vui lòng liên hệ với chúng tôi với số điện thoại 0941432773.
+
+      Trân trọng,
+      Đội ngũ hỗ trợ
+    `;
+
+    // Gửi email
+    await sendNotificationEmail(owner.email, subject, message);
+
+    console.log(`Thông báo đơn hàng đã được gửi tới email: ${owner.email}`);
+  } catch (error) {
+    console.error("Lỗi khi gửi thông báo email:", error.message);
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
@@ -1358,4 +1486,6 @@ module.exports = {
   getDeliveredOrdersAndRevenueFoodType,
   getRevenueByPaymentMethod,
   getRevenueByMonthAndYear,
+  getReviewByOrderId,
+  sendOrderNotificationToStore,
 };

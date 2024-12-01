@@ -87,6 +87,10 @@ const storeOrderSchema = new Schema({
   ],
   useLoyaltyPoints: { type: Boolean, default: false },
   loyaltyPointsUsed: { type: Number, default: 0 }, // Thêm trường lưu điểm tích lũy đã sử dụng
+  isNotificationSent: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 // Phương thức cập nhật phương thức thanh toán và tạo PaymentTransaction
