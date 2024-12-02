@@ -1,5 +1,5 @@
 const express = require("express");
-const { sendPhoneOtp, verifyEmail, getProfile, loginUser, registerUser, sendverifyEmail, resendVerificationCodeForPhone, verifyPhoneOtp, updateUser, sendResetPasswordEmail, resetPassword, changePassword, resendVerificationCode, logoutUser, setOnlineStatus, registerSeller, checkApprovalStatus, registerShipper, getProfileById } = require("../controllers/usercontrollers");
+const { removeFavoriteStore, getFavoriteStores, addFavoriteStore, sendPhoneOtp, verifyEmail, getProfile, loginUser, registerUser, sendverifyEmail, resendVerificationCodeForPhone, verifyPhoneOtp, updateUser, sendResetPasswordEmail, resetPassword, changePassword, resendVerificationCode, logoutUser, setOnlineStatus, registerSeller, checkApprovalStatus, registerShipper, getProfileById } = require("../controllers/usercontrollers");
 // const passport = require('passport');
 const { authenticateToken } = require("../middlewares/authMiddleware");
 
@@ -27,6 +27,9 @@ router.post("/register-seller", authenticateToken, registerSeller);
 router.post("/register-shipper", authenticateToken, registerShipper);
 router.get("/check-approval", authenticateToken, checkApprovalStatus);
 router.get("/profile/:id", authenticateToken, getProfileById); // Endpoint mới lấy thông tin người dùng theo id
+router.post("/add-favorite-store", authenticateToken, addFavoriteStore);
+router.get("/get-favorite-store/:userId", authenticateToken, getFavoriteStores);
+router.post("/remove-favorite-store", authenticateToken, removeFavoriteStore);
 
 // router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 // router.get('/google/callback',

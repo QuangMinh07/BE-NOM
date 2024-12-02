@@ -139,6 +139,12 @@ const UserSchema = new mongoose.Schema(
       type: String,
       default: null, // Lưu `userName` trước đó (nếu có)
     },
+    favoriteStores: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Store", // Tham chiếu đến mô hình Store
+      },
+    ],
   },
   {
     validateBeforeSave: true,

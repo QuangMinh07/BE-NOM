@@ -8,6 +8,7 @@ const Store = require("../models/store");
 const Staff = require("../models/staff"); // Đường dẫn tới modal Staff của bạn
 const UserPersonalInfo = require("../models/userPersonal"); // Đường dẫn tới modal Staff của bạn
 const ShipperInfo = require("../models/shipper");
+const Food = require("../models/food"); // Mô hình Food
 // const firebase = require("../firebase");
 const { rejectSeller } = require("../controllers/admincontroller");
 const { rejectShipper } = require("../controllers/admincontroller");
@@ -1014,6 +1015,94 @@ const registerShipper = async (req, res) => {
   }
 };
 
+// Hàm thêm cửa hàng yêu thích vào danh sách của người dùng
+const addFavoriteStore = async (req, res) => {
+  try {
+    const { userId, storeId } = req.body;
+
+    if (!userId || !storeId) {
+      return res.status(400).json({ message: "Thiếu userId hoặc storeId" });
+    }
+
+    // Tìm người dùng và cửa hàng
+    const user = await User.findById(userId);
+    const store = await Store.findById(storeId);
+
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    if (!store) {
+      return res.status(404).json({ message: "Không tìm thấy cửa hàng" });
+    }
+
+    // Kiểm tra xem cửa hàng đã tồn tại trong danh sách yêu thích của người dùng chưa
+    if (user.favoriteStores.includes(storeId)) {
+      return res.status(400).json({ message: "Cửa hàng này đã có trong danh sách yêu thích của bạn" });
+    }
+
+    // Thêm cửa hàng vào danh sách yêu thích
+    user.favoriteStores.push(storeId);
+    await user.save();
+
+    res.status(200).json({ message: "Cửa hàng đã được thêm vào danh sách yêu thích" });
+  } catch (error) {
+    console.error("Lỗi khi thêm cửa hàng yêu thích:", error);
+    res.status(500).json({ message: "Lỗi máy chủ khi thêm cửa hàng yêu thích." });
+  }
+};
+
+// Hàm lấy danh sách cửa hàng yêu thích của người dùng
+const getFavoriteStores = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ message: "Thiếu userId" });
+    }
+
+    const user = await User.findById(userId).populate("favoriteStores"); // Populate danh sách cửa hàng yêu thích
+
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    res.status(200).json({ message: "Danh sách cửa hàng yêu thích", favoriteStores: user.favoriteStores });
+  } catch (error) {
+    console.error("Lỗi khi lấy cửa hàng yêu thích:", error);
+    res.status(500).json({ message: "Lỗi máy chủ khi lấy cửa hàng yêu thích." });
+  }
+};
+
+const removeFavoriteStore = async (req, res) => {
+  try {
+    const { userId, storeId } = req.body;
+
+    if (!userId || !storeId) {
+      return res.status(400).json({ message: "Thiếu userId hoặc storeId" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng" });
+    }
+
+    // Kiểm tra xem cửa hàng có trong danh sách yêu thích không
+    if (!user.favoriteStores.includes(storeId)) {
+      return res.status(400).json({ message: "Cửa hàng không có trong danh sách yêu thích" });
+    }
+
+    // Loại bỏ cửa hàng khỏi danh sách yêu thích
+    user.favoriteStores = user.favoriteStores.filter((store) => store.toString() !== storeId.toString());
+    await user.save();
+
+    res.status(200).json({ message: "Cửa hàng đã được xóa khỏi danh sách yêu thích" });
+  } catch (error) {
+    console.error("Lỗi khi xóa cửa hàng yêu thích:", error);
+    res.status(500).json({ message: "Lỗi máy chủ khi xóa cửa hàng yêu thích." });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -1036,4 +1125,7 @@ module.exports = {
   sendverifyEmail,
   getProfileById,
   sendPhoneOtp,
+  addFavoriteStore,
+  getFavoriteStores,
+  removeFavoriteStore,
 };

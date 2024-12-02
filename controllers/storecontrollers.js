@@ -129,62 +129,122 @@ const updateStoreById = async (req, res) => {
 };
 
 // Hàm tạo cửa hàng mới dựa trên userId
-const createStore = async (req, res) => {
-  const { userId, storeName, storeAddress, bankAccount, foodType } = req.body;
-
+const createBranch = async (req, res) => {
   try {
-    // Tìm kiếm người dùng dựa trên userId
-    const user = await User.findById(userId).populate("storeIds");
+    const { parentStoreId, branchName, branchAddress } = req.body;
 
-    // Kiểm tra xem người dùng có tồn tại không
-    if (!user) {
-      return res.status(404).json({ message: "Người dùng không tồn tại" });
+    console.log("Received Parent Store ID:", parentStoreId, branchName, branchAddress);
+
+    if (!parentStoreId || !branchName || !branchAddress) {
+      return res.status(400).json({ message: "Vui lòng cung cấp đầy đủ thông tin." });
     }
 
-    // Kiểm tra nếu người dùng không phải là người bán hoặc chưa được duyệt
-    if (user.roleId !== "seller" || !user.isApproved) {
-      return res.status(400).json({
-        message: "Người dùng không phải người bán hoặc chưa được duyệt",
-      });
+    // Tìm cửa hàng cha
+    const parentStore = await Store.findById(parentStoreId).populate("foods").populate("foodGroups").populate("staffList");
+    if (!parentStore) {
+      return res.status(404).json({ message: "Không tìm thấy cửa hàng cha." });
     }
 
-    // Tạo cửa hàng mới cho người bán
-    const newStore = new Store({
-      storeName, // Tên cửa hàng lấy từ request body
-      owner: userId, // Liên kết với userId của người bán
-      storeAddress, // Địa chỉ cửa hàng lấy từ request body
-      bankAccount, // Tài khoản ngân hàng từ request body
-      foodType, // Loại thực phẩm từ request body
+    const branchCount = parentStore.branches.length;
+    if (branchCount >= 3) {
+      return res.status(400).json({ message: "Bạn chỉ được tạo tối đa 3 chi nhánh." });
+    }
+
+    // Kiểm tra xem đã có chi nhánh nào với tên hoặc địa chỉ giống như chi nhánh mới tạo hay chưa
+    const existingBranch = await Store.find({
+      _id: { $in: parentStore.branches }, // Tìm các chi nhánh trong cửa hàng cha
+      $or: [{ storeName: branchName.trim() }, { storeAddress: branchAddress.trim() }],
     });
 
-    // Lưu cửa hàng vào cơ sở dữ liệu
-    await newStore.save();
+    if (existingBranch.length > 0) {
+      return res.status(400).json({ message: "Tên cửa hàng con hoặc địa chỉ đã tồn tại trong cửa hàng này." });
+    }
 
-    // Thêm storeId của cửa hàng mới vào mảng storeIds của người dùng
-    user.storeIds.push(newStore._id);
-
-    // Tăng số lượng cửa hàng của người dùng
-    await User.findByIdAndUpdate(userId, { $inc: { storeCount: 1 } });
-
-    // Lưu lại thông tin người dùng
-    await user.save();
-
-    // Log ra thông tin người dùng sau khi cập nhật
-    const updatedUser = await User.findById(userId).populate({
-      path: "storeIds",
-      select: "storeName storeAddress bankAccount foodType", // Các trường cần thiết của cửa hàng
+    // Tạo chi nhánh mới với các thông tin từ cửa hàng cha, không cần tạo thêm cho cửa hàng cha
+    const newBranch = new Store({
+      storeName: `${parentStore.storeName} - ${branchName.trim()}`, // Tên cửa hàng con
+      owner: parentStore.owner, // Chủ cửa hàng từ cửa hàng cha
+      storeAddress: branchAddress.trim(), // Địa chỉ cửa hàng con
+      averageRating: parentStore.averageRating || 0, // Đánh giá cửa hàng cha
+      lockStatus: parentStore.lockStatus || "unlocked", // Trạng thái cửa hàng cha
+      imageURL: parentStore.imageURL || "", // Ảnh cửa hàng cha
+      foodType: parentStore.foodType || "", // Loại món ăn cửa hàng cha
+      bankAccount: parentStore.bankAccount || "", // Tài khoản ngân hàng cửa hàng cha
+      isOpen: parentStore.isOpen || false, // Trạng thái mở cửa cửa hàng cha
+      sellingTime: parentStore.sellingTime || [], // Thời gian bán hàng của cửa hàng cha
+      foods: parentStore.foods || [], // Danh sách món ăn của cửa hàng cha
+      foodGroups: parentStore.foodGroups || [], // Nhóm món ăn của cửa hàng cha
+      staffList: parentStore.staffList || [], // Danh sách nhân viên của cửa hàng cha
     });
 
-    console.log("Updated user with new store:", updatedUser);
+    await newBranch.save();
+
+    // Thêm chi nhánh vào danh sách của cửa hàng cha
+    parentStore.branches.push(newBranch._id);
+    await parentStore.save();
 
     res.status(201).json({
-      message: "Cửa hàng đã được tạo thành công",
-      store: newStore,
-      user: updatedUser, // Trả về thông tin người dùng đã cập nhật
+      message: "Chi nhánh được tạo thành công.",
+      branch: newBranch,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Lỗi server" });
+    console.error("Lỗi khi tạo chi nhánh:", error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi tạo chi nhánh." });
+  }
+};
+
+const getBranches = async (req, res) => {
+  try {
+    const { parentStoreId } = req.params; // Lấy ID cửa hàng cha từ URL params
+    console.log("Fetching branches for Parent Store ID:", parentStoreId);
+
+    if (!parentStoreId) {
+      return res.status(400).json({ message: "Vui lòng cung cấp ID cửa hàng cha." });
+    }
+
+    // Tìm cửa hàng cha và populate danh sách chi nhánh
+    const parentStore = await Store.findById(parentStoreId).populate({
+      path: "branches",
+      select: "storeName storeAddress averageRating isOpen", // Chỉ lấy các trường cần thiết
+    });
+
+    if (!parentStore) {
+      return res.status(404).json({ message: "Không tìm thấy cửa hàng cha." });
+    }
+
+    res.status(200).json({
+      message: "Lấy danh sách chi nhánh thành công.",
+      branches: parentStore.branches,
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy danh sách chi nhánh:", error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy danh sách chi nhánh." });
+  }
+};
+
+const getBranchById = async (req, res) => {
+  try {
+    const { branchId } = req.params; // Lấy ID của chi nhánh từ URL params
+    console.log("Fetching details for Branch ID:", branchId);
+
+    if (!branchId) {
+      return res.status(400).json({ message: "Vui lòng cung cấp ID chi nhánh." });
+    }
+
+    // Tìm chi nhánh theo ID
+    const branch = await Store.findById(branchId).select("storeName storeAddress averageRating isOpen sellingTime"); // Lấy các trường cần thiết
+
+    if (!branch) {
+      return res.status(404).json({ message: "Không tìm thấy chi nhánh." });
+    }
+
+    res.status(200).json({
+      message: "Lấy thông tin chi nhánh thành công.",
+      branch,
+    });
+  } catch (error) {
+    console.error("Lỗi khi lấy thông tin chi nhánh:", error);
+    res.status(500).json({ message: "Đã xảy ra lỗi khi lấy thông tin chi nhánh." });
   }
 };
 
@@ -593,10 +653,54 @@ const getStoresByFoodType = async (req, res) => {
   }
 };
 
+const deleteBranchById = async (req, res) => {
+  try {
+    const { parentStoreId, branchId } = req.params;
+
+    if (!parentStoreId || !branchId) {
+      return res.status(400).json({ success: false, message: "Thiếu parentStoreId hoặc branchId" });
+    }
+
+    // Tìm cửa hàng cha
+    const parentStore = await Store.findById(parentStoreId);
+    if (!parentStore) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy cửa hàng cha" });
+    }
+
+    // Tìm cửa hàng con (chi nhánh)
+    const branch = await Store.findById(branchId);
+    if (!branch) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy cửa hàng con" });
+    }
+
+    // Xóa cửa hàng con khỏi cơ sở dữ liệu
+    await Store.findByIdAndDelete(branchId);
+
+    // Loại bỏ chi nhánh khỏi danh sách chi nhánh của cửa hàng cha
+    console.log("Branches trước khi xóa:", parentStore.branches);
+
+    // So sánh ObjectId để loại bỏ đúng chi nhánh
+    parentStore.branches = parentStore.branches.filter((branchObjId) => branchObjId.toString() !== branchId.toString());
+
+    console.log("Branches sau khi xóa:", parentStore.branches);
+
+    await parentStore.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Cửa hàng con đã được xóa thành công.",
+      parentStore, // Trả về thông tin cửa hàng cha sau khi xóa chi nhánh
+    });
+  } catch (error) {
+    console.error("Lỗi khi xóa cửa hàng con:", error.message);
+    res.status(500).json({ success: false, message: "Lỗi máy chủ" });
+  }
+};
+
 module.exports = {
   getStoreByUser,
   updateStoreById,
-  createStore,
+  createBranch,
   deleteStoreById,
   addSellingTimeToStore,
   getStoreById,
@@ -605,4 +709,7 @@ module.exports = {
   searchStores,
   searchStoresAndFoods,
   getStoresByFoodType,
+  getBranches,
+  getBranchById,
+  deleteBranchById,
 };

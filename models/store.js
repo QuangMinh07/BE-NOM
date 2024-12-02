@@ -76,6 +76,13 @@ const StoreSchema = new mongoose.Schema({
     },
   ],
 
+  branches: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Store", // Liên kết với các chi nhánh
+    },
+  ],
+
   imageURL: { type: String, default: "" },
 
   averageRating: {
