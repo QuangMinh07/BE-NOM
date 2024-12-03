@@ -68,8 +68,6 @@ const UserSchema = new mongoose.Schema(
       unique: true,
       sparse: true,
     },
-    resetToken: String,
-    resetTokenExpiry: Date,
     loyaltyPoints: {
       type: Number,
       default: 0,
@@ -89,8 +87,6 @@ const UserSchema = new mongoose.Schema(
       default: false,
     },
     verificationCodeExpiry: Date,
-
-    lastLogin: Date,
 
     representativeName: {
       type: String,
