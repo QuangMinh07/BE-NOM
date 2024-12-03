@@ -116,21 +116,72 @@ const resetPassword = async (req, res) => {
   }
 };
 
-const sendResetPasswordEmail = async (req, res) => {
+const resetPasswordByPhone = async (req, res) => {
   try {
-    const { email } = req.body;
-    const user = await User.findOne({ email });
+    const { phone, newPassword, confirmPassword } = req.body;
 
-    if (!user) {
-      return res.status(404).json({ success: false, msg: "Email không tồn tại" });
+    // Check if newPassword and confirmPassword match
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        msg: "Mật khẩu mới và xác nhận mật khẩu không khớp",
+      });
     }
 
-    // Email exists, send response confirming this without sending verification code
-    res.status(200).json({ success: true, msg: "Email tồn tại trong hệ thống" });
+    // Find the user by phone number
+    const user = await User.findOne({ phoneNumber: phone });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        msg: "Số điện thoại không tồn tại trong hệ thống",
+      });
+    }
+
+    // Hash the new password and update the user's record
+    const hashedPassword = await bcryptjs.hash(newPassword, 10);
+    user.password = hashedPassword;
+
+    await user.save();
+
+    res.status(200).json({ success: true, msg: "Mật khẩu đã được cập nhật thành công" });
   } catch (error) {
     res.status(500).json({
       success: false,
-      msg: "Đã xảy ra lỗi khi kiểm tra email",
+      msg: "Cập nhật mật khẩu thất bại",
+      error: error.message,
+    });
+  }
+};
+
+const sendResetPasswordEmailOrPhone = async (req, res) => {
+  try {
+    const { emailOrPhone } = req.body; // Nhận email hoặc số điện thoại từ request body
+    console.log("Dữ liệu nhận từ request:", emailOrPhone);
+
+    // Kiểm tra xem input là email hay số điện thoại
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailOrPhone); // Kiểm tra định dạng email
+    const isPhone = /^[0-9]{10,15}$/.test(emailOrPhone); // Kiểm tra định dạng số điện thoại (10-15 chữ số)
+
+    let user;
+    if (isEmail) {
+      user = await User.findOne({ email: emailOrPhone });
+    } else if (isPhone) {
+      user = await User.findOne({ phoneNumber: emailOrPhone });
+    } else {
+      return res.status(400).json({ success: false, msg: "Vui lòng nhập email hoặc số điện thoại hợp lệ" });
+    }
+
+    if (!user) {
+      return res.status(404).json({ success: false, msg: "Email hoặc số điện thoại không tồn tại trong hệ thống" });
+    }
+
+    // Email hoặc số điện thoại tồn tại
+    res.status(200).json({ success: true, msg: "Tài khoản tồn tại trong hệ thống" });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      msg: "Đã xảy ra lỗi khi kiểm tra thông tin",
       error: error.message,
     });
   }
@@ -483,6 +534,42 @@ const verifyEmail = async (req, res, next) => {
   }
 };
 
+const verifyEmailReset = async (req, res, next) => {
+  const { email, verificationCode } = req.body;
+
+  if (!email || !verificationCode) {
+    return next(errorHandler(400, "Email và mã xác thực là bắt buộc"));
+  }
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return next(errorHandler(400, "Người dùng không tồn tại"));
+    }
+
+    if (user.verificationCode !== verificationCode) {
+      return next(errorHandler(400, "Mã xác thực không đúng"));
+    }
+
+    if (user.verificationCodeExpiry < Date.now()) {
+      return next(errorHandler(400, "Mã xác thực đã hết hạn"));
+    }
+
+    user.isVerified = true;
+    user.verificationCode = undefined;
+    user.verificationCodeExpiry = undefined;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Xác thực email thành công!Giờ bạn hãy đăng nhập",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const sendPhoneOtp = async (req, res, next) => {
   console.log("Request body:", req.body); // Kiểm tra giá trị nhận được
   const { phone } = req.body;
@@ -544,6 +631,50 @@ const verifyPhoneOtp = async (req, res, next) => {
 
     if (user.isVerified) {
       return next(errorHandler(400, "Tài khoản đã được xác thực"));
+    }
+
+    if (user.verificationCodeExpiry < Date.now()) {
+      return next(errorHandler(400, "Mã xác thực đã hết hạn"));
+    }
+
+    // Kiểm tra mã OTP qua Twilio
+    const status = await verifyCode(phone, verificationCode);
+
+    if (status === "approved") {
+      // Đánh dấu tài khoản là đã xác thực
+      user.isVerified = true;
+      user.verificationCode = undefined; // Xóa mã cũ (nếu có)
+      user.verificationCodeExpiry = undefined; // Xóa thời gian hết hạn (nếu có)
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Xác thực số điện thoại thành công! Bạn có thể đăng nhập.",
+      });
+    } else {
+      // Nếu mã OTP không hợp lệ hoặc đã hết hạn
+      return next(errorHandler(400, "Mã xác thực không hợp lệ"));
+    }
+  } catch (error) {
+    console.error("Error in verifyPhoneOtp:", error);
+    return next(errorHandler(500, "Đã xảy ra lỗi khi xác minh mã OTP"));
+  }
+};
+
+const verifyPhoneOtpReset = async (req, res, next) => {
+  const { phone, verificationCode } = req.body;
+
+  // Kiểm tra sự tồn tại của phone và verificationCode
+  if (!phone || !verificationCode) {
+    return next(errorHandler(400, "Số điện thoại và mã xác thực là bắt buộc"));
+  }
+
+  try {
+    // Tìm người dùng dựa trên số điện thoại
+    const user = await User.findOne({ phoneNumber: phone });
+
+    if (!user) {
+      return next(errorHandler(400, "Người dùng không tồn tại"));
     }
 
     if (user.verificationCodeExpiry < Date.now()) {
@@ -641,6 +772,11 @@ const updateUser = async (req, res, next) => {
   const { phone, email, fullName, address } = req.body;
 
   try {
+    // Kiểm tra nếu bất kỳ trường nào bị thiếu
+    if (!phone || !email || !fullName) {
+      return next(errorHandler(400, "Tất cả các trường thông tin không được bỏ trống"));
+    }
+
     // Tìm người dùng dựa trên ID từ token
     const user = await User.findById(req.user.id);
 
@@ -664,9 +800,9 @@ const updateUser = async (req, res, next) => {
     }
 
     // Cập nhật thông tin người dùng
-    user.phoneNumber = phone || user.phoneNumber;
-    user.email = email || user.email;
-    user.fullName = fullName || user.fullName;
+    user.phoneNumber = phone;
+    user.email = email;
+    user.fullName = fullName;
     user.address = address || user.address;
 
     // Lưu thay đổi vào cơ sở dữ liệu
@@ -753,6 +889,65 @@ const resendVerificationCode = async (req, res, next) => {
   }
 };
 
+const resendVerificationCodeReset = async (req, res, next) => {
+  const { email } = req.body;
+
+  // Check if email is provided
+  if (!email) {
+    return next(errorHandler(400, "Email là bắt buộc"));
+  }
+
+  try {
+    // Find the user by email
+    const user = await User.findOne({ email });
+
+    // If user does not exist
+    if (!user) {
+      return next(errorHandler(404, "Người dùng không tồn tại"));
+    }
+
+    // Generate a new verification code and expiry time
+    const newVerificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const newVerificationCodeExpiry = Date.now() + 1 * 60 * 1000; // 1 minute expiry
+
+    // Update user's verification code and expiry in the database
+    user.verificationCode = newVerificationCode;
+    user.verificationCodeExpiry = newVerificationCodeExpiry;
+    await user.save();
+
+    // Send the new verification code via email
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: "Mã Xác Thực Mới",
+      text: `Mã xác thực mới của bạn là: ${newVerificationCode}. Mã xác thực sẽ hết hạn sau 1 phút.`,
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    // Respond with success message
+    res.status(200).json({
+      success: true,
+      message: "Mã xác thực đã được gửi lại. Vui lòng kiểm tra email của bạn.",
+    });
+  } catch (error) {
+    console.error("Error in resendVerificationCode:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Gửi lại mã xác thực thất bại",
+      error: error.message,
+    });
+  }
+};
+
 const resendVerificationCodeForPhone = async (req, res, next) => {
   const { phone } = req.body;
 
@@ -773,6 +968,54 @@ const resendVerificationCodeForPhone = async (req, res, next) => {
     // Nếu tài khoản đã được xác thực
     if (user.isVerified) {
       return next(errorHandler(400, "Tài khoản đã được xác thực"));
+    }
+
+    // Tạo mã xác thực mới và thời gian hết hạn
+    const newVerificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const newVerificationCodeExpiry = Date.now() + 1 * 60 * 1000; // Hết hạn sau 1 phút
+
+    // Cập nhật mã xác thực và thời gian hết hạn trong cơ sở dữ liệu
+    user.verificationCode = newVerificationCode;
+    user.verificationCodeExpiry = newVerificationCodeExpiry;
+    await user.save();
+
+    // Gửi mã OTP qua Twilio
+    const sendOtpStatus = await sendVerificationCode(phone);
+
+    if (sendOtpStatus !== "pending") {
+      return next(errorHandler(500, "Không thể gửi mã OTP qua SMS, vui lòng thử lại sau."));
+    }
+
+    // Trả về phản hồi thành công
+    res.status(200).json({
+      success: true,
+      message: "Mã xác thực đã được gửi qua SMS. Vui lòng kiểm tra điện thoại của bạn.",
+    });
+  } catch (error) {
+    console.error("Error in resendVerificationCodeForPhone:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Gửi lại mã xác thực thất bại",
+      error: error.message,
+    });
+  }
+};
+
+const resendVerificationCodeForPhoneReset = async (req, res, next) => {
+  const { phone } = req.body;
+
+  // Kiểm tra nếu số điện thoại được cung cấp
+  if (!phone) {
+    return next(errorHandler(400, "Số điện thoại là bắt buộc"));
+  }
+
+  try {
+    // Tìm người dùng dựa trên số điện thoại
+    const user = await User.findOne({ phoneNumber: phone });
+
+    // Nếu người dùng không tồn tại
+    if (!user) {
+      return next(errorHandler(404, "Người dùng không tồn tại"));
     }
 
     // Tạo mã xác thực mới và thời gian hết hạn
@@ -1111,7 +1354,7 @@ module.exports = {
   verifyEmail,
   getProfile,
   updateUser,
-  sendResetPasswordEmail,
+  sendResetPasswordEmailOrPhone,
   resetPassword,
   changePassword,
   resendVerificationCode,
@@ -1128,4 +1371,9 @@ module.exports = {
   addFavoriteStore,
   getFavoriteStores,
   removeFavoriteStore,
+  verifyEmailReset,
+  resendVerificationCodeReset,
+  verifyPhoneOtpReset,
+  resendVerificationCodeForPhoneReset,
+  resetPasswordByPhone,
 };

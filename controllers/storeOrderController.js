@@ -166,20 +166,31 @@ const createOrderFromCart = async (req, res) => {
 
     // Thiết lập kiểm tra tự động hủy sau 1 phút nếu đơn hàng vẫn chưa được xác nhận
     setTimeout(async () => {
-      const updatedOrder = await StoreOrder.findById(savedOrder._id);
+      try {
+        const updatedOrder = await StoreOrder.findById(savedOrder._id);
 
-      if (updatedOrder && updatedOrder.orderStatus === "Pending") {
-        // Thực hiện hàm `cancelOrder` để hủy đơn hàng nếu vẫn ở trạng thái "Pending"
-        await cancelOrder(
-          { params: { userId: cart.user, orderId: savedOrder._id } },
-          {
-            status: () => ({
-              json: (data) => console.log(`Đơn hàng ${savedOrder._id} đã bị hủy tự động sau 1 phút:`, data),
-            }),
-          }
-        );
+        if (!updatedOrder) {
+          console.log(`Không tìm thấy đơn hàng ${savedOrder._id}`);
+          return;
+        }
+
+        // Kiểm tra trạng thái đơn hàng, nếu là "Pending" hoặc "Processing" thì hủy
+        if (["Pending", "Processing"].includes(updatedOrder.orderStatus)) {
+          await cancelOrder(
+            { params: { userId: cart.user, orderId: savedOrder._id } },
+            {
+              status: () => ({
+                json: (data) => console.log(`Đơn hàng ${savedOrder._id} đã bị hủy tự động sau 5 phút:`, data),
+              }),
+            }
+          );
+        } else {
+          console.log(`Đơn hàng ${savedOrder._id} không bị hủy vì trạng thái hiện tại là: ${updatedOrder.orderStatus}`);
+        }
+      } catch (error) {
+        console.error(`Lỗi khi kiểm tra hoặc hủy đơn hàng ${savedOrder._id}:`, error.message);
       }
-    }, 5 * 60 * 1000); // Hủy sau 1 phút
+    }, 5 * 60 * 1000); // Hủy sau 5 phút
   } catch (error) {
     console.error("Lỗi khi tạo đơn hàng từ giỏ hàng:", error);
     res.status(500).json({ error: "Lỗi khi tạo đơn hàng." });

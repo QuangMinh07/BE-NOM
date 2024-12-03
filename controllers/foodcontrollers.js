@@ -11,6 +11,16 @@ const addFoodItem = async (req, res) => {
   try {
     console.log("Store ID từ client:", storeId);
 
+    // Kiểm tra các trường bắt buộc
+    if (!storeId || !foodName || !price || !foodGroup) {
+      return res.status(400).json({ message: "Vui lòng cung cấp đầy đủ thông tin bắt buộc (tên món, giá, nhóm món, cửa hàng)." });
+    }
+
+    // Kiểm tra giá trị của giá
+    if (price <= 0) {
+      return res.status(400).json({ message: "Giá món ăn phải lớn hơn 0." });
+    }
+
     const store = await Store.findById(storeId);
 
     if (!store) {
@@ -22,27 +32,43 @@ const addFoodItem = async (req, res) => {
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path);
       imageUrl = result.secure_url; // Lưu URL ảnh vào imageUrl
+    } else {
+      return res.status(400).json({ message: "Vui lòng tải lên ảnh món ăn." });
     }
 
     // Chuyển đổi sellingTime từ frontend sang định dạng MongoDB
-    const formattedSellingTime = JSON.parse(sellingTime).map((dayData) => {
-      if (dayData.is24h) {
-        return {
-          day: dayData.day,
-          is24h: true,
-          timeSlots: [{ open: "00:00", close: "23:59" }],
-        };
-      } else {
-        return {
-          day: dayData.day,
-          is24h: false,
-          timeSlots: dayData.timeSlots.map((slot) => ({
-            open: slot.startTime,
-            close: slot.endTime,
-          })),
-        };
-      }
-    });
+    let formattedSellingTime;
+    let note = null;
+
+    if (sellingTime) {
+      console.log("Đã nhận sellingTime từ client:", sellingTime);
+      formattedSellingTime = JSON.parse(sellingTime).map((dayData) => {
+        if (dayData.is24h) {
+          return {
+            day: dayData.day,
+            is24h: true,
+            timeSlots: [{ open: "00:00", close: "23:59" }],
+          };
+        } else {
+          return {
+            day: dayData.day,
+            is24h: false,
+            timeSlots: dayData.timeSlots.map((slot) => ({
+              open: slot.startTime,
+              close: slot.endTime,
+            })),
+          };
+        }
+      });
+    } else {
+      console.log("Không nhận được sellingTime từ client. Áp dụng giờ mặc định.");
+      note = "Chưa chọn giờ bán. Sử dụng giờ mặc định: full tuần và full 24h.";
+      formattedSellingTime = Array.from({ length: 7 }, (_, i) => ({
+        day: i + 1,
+        is24h: true,
+        timeSlots: [{ open: "00:00", close: "23:59" }],
+      }));
+    }
 
     // Tạo món ăn mới
     const newFood = new Food({
@@ -72,7 +98,11 @@ const addFoodItem = async (req, res) => {
       return res.status(404).json({ message: "Nhóm món không tồn tại" });
     }
 
-    return res.status(200).json({ message: "Thêm món ăn thành công", food: newFood });
+    return res.status(200).json({
+      message: "Thêm món ăn thành công",
+      food: newFood,
+      note, // Trường note được gửi đi
+    });
   } catch (error) {
     console.error("Lỗi server:", error);
     return res.status(500).json({ message: "Lỗi server khi thêm món ăn" });
@@ -244,6 +274,12 @@ const deleteFoodItem = async (req, res) => {
       { $pull: { foods: foodId } } // Xóa món ăn khỏi mảng `foods`
     );
 
+    // Xóa món ăn khỏi danh sách `foods` trong bảng `stores`
+    await Store.updateMany(
+      { foods: foodId },
+      { $pull: { foods: foodId } } // Xóa món ăn khỏi mảng `foods` trong bảng `stores`
+    );
+
     console.log("Món ăn đã được xóa:", deletedFood); // Log kiểm tra
     res.status(200).json({
       success: true,
@@ -257,11 +293,11 @@ const deleteFoodItem = async (req, res) => {
 };
 
 const getAllFoods = async (req, res) => {
-  const { page = 1, limit = 10, sortField = "foodName", sortOrder = "asc" } = req.query;
+  // const { page = 1, limit = 10, sortField = "foodName", sortOrder = "asc" } = req.query;
 
   try {
     // Tạo đối tượng sắp xếp, bao gồm sắp xếp theo isAvailable
-    const sortOptions = { [sortField]: sortOrder === "asc" ? 1 : -1 };
+    // const sortOptions = { [sortField]: sortOrder === "asc" ? 1 : -1 };
 
     // Tìm tất cả món ăn, phân trang và sắp xếp
     const foods = await Food.find()
@@ -272,16 +308,16 @@ const getAllFoods = async (req, res) => {
       .populate({
         path: "foodGroup",
         select: "groupName",
-      })
-      .sort(sortOptions) // Sắp xếp theo sortOptions
-      .skip((page - 1) * limit) // Phân trang
-      .limit(limit); // Giới hạn số lượng kết quả
+      });
+    // .sort(sortOptions) // Sắp xếp theo sortOptions
+    // .skip((page - 1) * limit) // Phân trang
+    // .limit(limit); // Giới hạn số lượng kết quả
 
     if (!foods || foods.length === 0) {
       return res.status(404).json({ message: "Không tìm thấy món ăn nào" });
     }
 
-    const totalItems = await Food.countDocuments();
+    // const totalItems = await Food.countDocuments();
 
     res.status(200).json({
       message: "Lấy tất cả món ăn thành công",
@@ -302,8 +338,8 @@ const getAllFoods = async (req, res) => {
         createdAt: food.createdAt,
         updatedAt: food.updatedAt,
       })),
-      totalPages: Math.ceil(totalItems / limit),
-      currentPage: page,
+      // totalPages: Math.ceil(totalItems / limit),
+      // currentPage: page,
     });
   } catch (error) {
     console.error("Lỗi server:", error);

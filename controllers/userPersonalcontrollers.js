@@ -5,6 +5,10 @@ const updateUserPersonalInfo = async (req, res, next) => {
   const { dateOfBirth, gender, city, state, postalCode, country, profilePictureURL } = req.body;
 
   try {
+    // Kiểm tra nếu bất kỳ trường nào bị thiếu
+    if (!dateOfBirth || !gender || !state) {
+      return next(errorHandler(400, "Tất cả các trường thông tin không được bỏ trống"));
+    }
     // Tìm thông tin cá nhân của người dùng dựa trên userId
     let userPersonalInfo = await UserPersonalInfo.findOne({ userId: req.user.id });
 
@@ -18,14 +22,14 @@ const updateUserPersonalInfo = async (req, res, next) => {
         state,
         postalCode,
         country,
-        profilePictureURL
+        profilePictureURL,
       });
     } else {
       // Nếu đã có, cập nhật thông tin
-      userPersonalInfo.dateOfBirth = dateOfBirth || userPersonalInfo.dateOfBirth;
-      userPersonalInfo.gender = gender || userPersonalInfo.gender;
+      userPersonalInfo.dateOfBirth = dateOfBirth;
+      userPersonalInfo.gender = gender;
       userPersonalInfo.city = city || userPersonalInfo.city;
-      userPersonalInfo.state = state || userPersonalInfo.state;
+      userPersonalInfo.state = state;
       userPersonalInfo.postalCode = postalCode || userPersonalInfo.postalCode;
       userPersonalInfo.country = country || userPersonalInfo.country;
       userPersonalInfo.profilePictureURL = profilePictureURL || userPersonalInfo.profilePictureURL;
@@ -35,9 +39,7 @@ const updateUserPersonalInfo = async (req, res, next) => {
     await userPersonalInfo.save();
 
     // Lấy thông tin đầy đủ để trả về cho người dùng
-    const updatedUserPersonalInfo = await UserPersonalInfo.findOne({ userId: req.user.id })
-      .populate("userId", "fullName address phoneNumber")
-      .exec();
+    const updatedUserPersonalInfo = await UserPersonalInfo.findOne({ userId: req.user.id }).populate("userId", "fullName address phoneNumber").exec();
 
     const fullName = updatedUserPersonalInfo.userId.fullName;
     const nameParts = fullName.split(" "); // Tách fullName thành các phần
@@ -75,9 +77,7 @@ const getUserPersonalInfo = async (req, res, next) => {
       .exec();
 
     if (!userPersonalInfo) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Thông tin cá nhân không tồn tại" });
+      return res.status(404).json({ success: false, message: "Thông tin cá nhân không tồn tại" });
     }
 
     const fullName = userPersonalInfo.userId.fullName;
@@ -108,5 +108,5 @@ const getUserPersonalInfo = async (req, res, next) => {
 
 module.exports = {
   getUserPersonalInfo,
-  updateUserPersonalInfo
+  updateUserPersonalInfo,
 };

@@ -631,13 +631,6 @@ const getStoresByFoodType = async (req, res) => {
     const stores = await Store.find({ foodType: trimmedFoodType }).populate("owner", "userName email");
     console.log("Stores found:", stores); // Log kết quả tìm kiếm
 
-    if (!stores || stores.length === 0) {
-      return res.status(404).json({
-        success: false,
-        msg: "Không có cửa hàng nào với loại món ăn này",
-      });
-    }
-
     res.status(200).json({
       success: true,
       msg: "Lấy danh sách cửa hàng thành công",
