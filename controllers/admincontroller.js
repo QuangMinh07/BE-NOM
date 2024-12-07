@@ -637,7 +637,7 @@ const getAllFoods = async (req, res) => {
     const foods = await Food.find()
       .populate({
         path: "store",
-        select: "storeName",
+        select: "storeName _id", // Bao gồm cả storeName và _id
       })
       .populate({
         path: "foodGroup",
@@ -671,7 +671,10 @@ const getAllFoods = async (req, res) => {
         foodName: food.foodName,
         price: food.price,
         description: food.description,
-        store: food.store.storeName,
+        store: {
+          storeId: food.store?._id, // Lấy storeId
+          storeName: food.store?.storeName, // Lấy storeName
+        },
         imageUrl: food.imageUrl,
         foodGroup: food.foodGroup.groupName,
         isAvailable: food.isAvailable,
@@ -1465,6 +1468,57 @@ const sendOrderNotificationToStore = async (orderId) => {
   }
 };
 
+const sendWarningNotificationToUser = async (storeId, foodId) => {
+  try {
+    // Tìm cửa hàng dựa trên storeId
+    const store = await Store.findById(storeId).populate("owner", "email fullName");
+    if (!store) {
+      console.error("Không tìm thấy cửa hàng với ID:", storeId);
+      return;
+    }
+
+    // Tìm món ăn dựa trên foodId
+    const food = await Food.findById(foodId).populate("store", "storeName");
+    if (!food || !food.store._id.equals(storeId)) {
+      console.error("Không tìm thấy món ăn hoặc món ăn không thuộc cửa hàng:", foodId);
+      return;
+    }
+
+    // Lấy thông tin chủ cửa hàng
+    const owner = store.owner;
+    if (!owner || !owner.email) {
+      console.error("Không tìm thấy email của chủ cửa hàng:", storeId);
+      return;
+    }
+
+    // Chuẩn bị nội dung email cảnh báo
+    const subject = `Cảnh báo: Cửa hàng ${store.storeName} và món ăn ${food.foodName}`;
+    const message = `
+      Kính gửi ${owner.fullName},
+
+      Đây là cảnh báo liên quan đến cửa hàng "${store.storeName}" và món ăn "${food.foodName}" thuộc cửa hàng của bạn.
+
+      - Mã cửa hàng: ${store._id}
+      - Tên cửa hàng: ${store.storeName}
+      - Mã món ăn: ${food._id}
+      - Tên món ăn: ${food.foodName}
+      - Giá món ăn: ${food.price.toLocaleString("vi-VN")} VND
+
+      Vui lòng kiểm tra và cập nhật thông tin món ăn cho phù hợp, nếu không chúng tôi sẽ xóa món ăn đó. Nếu bạn có bất kỳ thắc mắc nào, vui lòng liên hệ với chúng tôi qua số điện thoại hỗ trợ (0941432773).
+
+      Trân trọng,
+      Đội ngũ hỗ trợ
+    `;
+
+    // Gửi email
+    await sendNotificationEmail(owner.email, subject, message);
+
+    console.log(`Email cảnh báo đã được gửi tới email: ${owner.email}`);
+  } catch (error) {
+    console.error("Lỗi khi gửi cảnh báo qua email:", error.message);
+  }
+};
+
 module.exports = {
   registerAdmin,
   loginAdmin,
@@ -1488,4 +1542,5 @@ module.exports = {
   getRevenueByMonthAndYear,
   getReviewByOrderId,
   sendOrderNotificationToStore,
+  sendWarningNotificationToUser,
 };

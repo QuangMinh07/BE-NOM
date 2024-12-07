@@ -1,5 +1,5 @@
 const express = require("express");
-const { sendOrderNotificationToStore, getReviewByOrderId, getRevenueByMonthAndYear, getRevenueByPaymentMethod, getDeliveredOrdersAndRevenueFoodType, deleteUser, lockStore, unlockStore, registerAdmin, loginAdmin, getAllUser, approveSeller, rejectSeller, getLoginMethodStatistics, getStoreCount, getAllStores, approveShipper, rejectShipper, getDeliveredOrdersAndRevenue, getAllUsers, getAllFoods, getAllOrders } = require("../controllers/admincontroller");
+const { sendWarningNotificationToUser, sendOrderNotificationToStore, getReviewByOrderId, getRevenueByMonthAndYear, getRevenueByPaymentMethod, getDeliveredOrdersAndRevenueFoodType, deleteUser, lockStore, unlockStore, registerAdmin, loginAdmin, getAllUser, approveSeller, rejectSeller, getLoginMethodStatistics, getStoreCount, getAllStores, approveShipper, rejectShipper, getDeliveredOrdersAndRevenue, getAllUsers, getAllFoods, getAllOrders } = require("../controllers/admincontroller");
 const { authenticateToken } = require("../middlewares/authMiddleware"); // Import the middleware
 const router = express.Router();
 const StoreOrder = require("../models/storeOrder");
@@ -50,6 +50,34 @@ router.post("/send-notification", async (req, res) => {
   } catch (error) {
     console.error("Lỗi khi gửi thông báo:", error.message);
     res.status(500).json({ message: "Lỗi khi gửi thông báo.", error: error.message });
+  }
+});
+
+router.post("/send-warning-notification", async (req, res) => {
+  const { storeId, foodId } = req.body;
+
+  if (!storeId || !foodId) {
+    return res.status(400).json({
+      success: false,
+      message: "storeId và foodId là bắt buộc",
+    });
+  }
+
+  try {
+    // Gửi cảnh báo
+    await sendWarningNotificationToUser(storeId, foodId);
+
+    res.status(200).json({
+      success: true,
+      message: `Đã gửi cảnh báo cho cửa hàng ${storeId} và món ăn ${foodId}.`,
+    });
+  } catch (error) {
+    console.error("Lỗi khi gửi cảnh báo:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Đã xảy ra lỗi khi gửi cảnh báo",
+      error: error.message,
+    });
   }
 });
 
