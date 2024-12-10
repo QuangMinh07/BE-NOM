@@ -5,6 +5,8 @@ const User = require("../models/user");
 const Chat = require("../models/chat");
 const PaymentTransaction = require("../models/PaymentTransaction");
 const { cancelOrder } = require("../controllers/OrderCancellationController"); // Import hàm hủy đơn hàng
+const nodemailer = require("nodemailer");
+const Store = require("../models/store");
 
 const createOrderFromCart = async (req, res) => {
   try {
@@ -136,6 +138,36 @@ const createOrderFromCart = async (req, res) => {
     const populatedOrder = await StoreOrder.findById(savedOrder._id)
       .populate("user", "fullName") // Lấy tên người dùng
       .populate("store", "storeName"); // Lấy tên cửa hàng
+
+    // Truy vấn để lấy thông tin `store`
+    const store = await Store.findById(savedOrder.store).select("storeName owner");
+
+    // Truy vấn để lấy thông tin `owner`
+    const storeOwner = await User.findById(store.owner).select("email fullName");
+
+    // Gửi email cho cửa hàng khi đơn hàng được tạo
+    if (storeOwner.email) {
+      const storeSubject = `Đơn hàng mới từ cửa hàng: ${store.storeName}`;
+      const storeMessage = `
+      Kính gửi ${storeOwner.fullName},
+
+      Một đơn hàng mới đã được tạo tại cửa hàng "${store.storeName}" của bạn.
+      - Mã đơn hàng: ${savedOrder._id}
+      - Khách hàng: ${user.fullName}
+      - Tổng tiền: ${savedOrder.totalAmount.toLocaleString("vi-VN")} VND
+      - Phương thức thanh toán: ${paymentMethod === "Cash" ? "Tiền mặt" : "Online qua PayOS"}
+      - Ngày đặt hàng: ${new Date(savedOrder.orderDate).toLocaleString("vi-VN")}
+
+      Vui lòng kiểm tra và xử lý đơn hàng kịp thời.
+
+      Trân trọng,
+      Đội ngũ hỗ trợ.
+      `;
+      await sendNotificationEmail(storeOwner.email, storeSubject, storeMessage);
+      console.log(`Email thông báo đơn hàng mới đã được gửi tới cửa hàng: ${storeOwner.email}`);
+    } else {
+      console.log("Không tìm thấy email của chủ cửa hàng.");
+    }
 
     // Trả về toàn bộ thông tin đơn hàng và các chi tiết bao gồm ID và tên người dùng và cửa hàng
     res.status(201).json({
@@ -497,6 +529,8 @@ const updateOrderStatus = async (req, res) => {
       console.log(`No expoPushToken found for user: ${customerId}`);
     }
 
+    await sendOrderUpdateEmails(orderId);
+
     return res.status(200).json({
       message: `Trạng thái đơn hàng đã được cập nhật sang ${nextStatus} ${user.roleId === "shipper" ? "và thêm shipper vào đơn hàng" : ""}`,
       updatedOrder: order,
@@ -601,6 +635,160 @@ const getDeliveredOrdersAndRevenue = async (req, res) => {
   } catch (error) {
     console.error("Lỗi khi lấy đơn hàng đã giao và tính doanh thu:", error);
     res.status(500).json({ error: "Lỗi khi lấy đơn hàng đã giao và tính doanh thu." });
+  }
+};
+
+const sendNotificationEmail = async (email, subject, message) => {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject,
+      text: message,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Email sent to ${email} with subject: ${subject}`);
+  } catch (error) {
+    console.error(`Error sending email to ${email}:`, error.message);
+  }
+};
+
+const sendOrderUpdateEmails = async (orderId) => {
+  try {
+    // Tìm đơn hàng theo ID và populate thông tin khách hàng, cửa hàng và shipper
+    const order = await StoreOrder.findById(orderId)
+      .populate("user", "fullName email") // Lấy thông tin khách hàng
+      .populate("store", "storeName owner") // Lấy thông tin cửa hàng
+      .populate({
+        path: "shipper", // Lấy thông tin shipper
+        populate: {
+          path: "userId", // Lấy thông tin user liên kết với shipper
+          select: "email fullName", // Chỉ lấy email và fullName từ User
+        },
+      });
+
+    if (!order) {
+      console.error("Order not found:", orderId);
+      return;
+    }
+
+    const statusMessages = {
+      Processing: "Đơn hàng đang xử lý",
+      Shipped: "Shipper đã chấp nhận giao đơn hàng",
+      Completed: "Đơn hàng đang hoàn thành",
+      Received: "Shipper đã nhận hàng",
+      Delivered: "Đơn hàng đã giao thành công",
+    };
+
+    // Lấy thông báo trạng thái
+    const statusMessage = statusMessages[order.orderStatus] || "Trạng thái đơn hàng không xác định";
+
+    // Kiểm tra phương thức thanh toán
+    const paymentMessage = order.paymentMethod === "Cash" ? "Thanh toán: Tiền mặt" : "Thanh toán: Online qua PayOS";
+
+    const customerEmail = order.user?.email; // Email khách hàng
+    const customerName = order.user?.fullName || "Khách hàng"; // Tên khách hàng
+
+    const storeName = order.store?.storeName || "Cửa hàng"; // Tên cửa hàng
+    const ownerId = order.store?.owner; // ID chủ cửa hàng
+
+    const shipperEmail = order.shipper?.userId?.email; // Email của shipper
+    const shipperName = order.shipper?.userId?.fullName || "Shipper"; // Tên shipper
+
+    let storeOwnerEmail = null;
+    let storeOwnerName = "Chủ cửa hàng";
+
+    // Lấy email và tên của chủ cửa hàng từ User model
+    if (ownerId) {
+      const storeOwner = await User.findById(ownerId).select("email fullName");
+      if (storeOwner) {
+        storeOwnerEmail = storeOwner.email;
+        storeOwnerName = storeOwner.fullName || storeOwnerName;
+      }
+    }
+
+    // Gửi email thông báo cho khách hàng
+    if (customerEmail) {
+      const customerSubject = `Cập nhật trạng thái đơn hàng: ${orderId}`;
+      const customerMessage = `
+      Kính gửi ${customerName},
+
+      Đơn hàng của bạn (Mã: ${orderId}) đã được cập nhật trạng thái:
+      - Trạng thái hiện tại: ${statusMessage}
+      - Tổng tiền: ${order.totalAmount.toLocaleString("vi-VN")} VND
+      - Phương thức thanh toán: ${paymentMessage}
+      - Ngày đặt hàng: ${new Date(order.orderDate).toLocaleString("vi-VN")}
+
+      Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi. Nếu bạn có bất kỳ câu hỏi nào, vui lòng liên hệ với đội ngũ hỗ trợ.
+
+      Trân trọng,
+      Đội ngũ hỗ trợ.
+      `;
+      await sendNotificationEmail(customerEmail, customerSubject, customerMessage);
+      console.log(`Email thông báo trạng thái đơn hàng đã được gửi tới khách hàng: ${customerEmail}`);
+    } else {
+      console.log(`Không tìm thấy email của khách hàng cho đơn hàng: ${orderId}`);
+    }
+
+    // Gửi email thông báo cho cửa hàng khi đơn hàng ở trạng thái Shipped, Received, hoặc Delivered
+    if (["Shipped", "Received", "Delivered"].includes(order.orderStatus) && storeOwnerEmail) {
+      const storeSubject = `Thông báo trạng thái đơn hàng: ${orderId}`;
+      const storeMessage = `
+      Kính gửi ${storeOwnerName},
+
+      Đơn hàng (Mã: ${orderId}) tại cửa hàng "${storeName}" của bạn đã được cập nhật trạng thái:
+      - Trạng thái hiện tại: ${statusMessage}
+      - Tổng tiền: ${order.totalAmount.toLocaleString("vi-VN")} VND
+      - Khách hàng: ${customerName}
+      - Phương thức thanh toán: ${paymentMessage}
+
+      Hãy kiểm tra và xử lý đơn hàng nếu cần thiết.
+
+      Trân trọng,
+      Đội ngũ hỗ trợ.
+      `;
+      await sendNotificationEmail(storeOwnerEmail, storeSubject, storeMessage);
+      console.log(`Email thông báo trạng thái ${order.orderStatus} của đơn hàng đã được gửi tới cửa hàng: ${storeOwnerEmail}`);
+    } else if (!storeOwnerEmail) {
+      console.log(`Không tìm thấy email của chủ cửa hàng cho đơn hàng: ${orderId}`);
+    }
+
+    // Gửi email thông báo khi trạng thái là Completed
+    if (order.orderStatus === "Completed") {
+      // Gửi email cho shipper
+      if (shipperEmail) {
+        const completedShipperSubject = `Thông báo hoàn tất giao hàng: ${orderId}`;
+        const completedShipperMessage = `
+        Kính gửi ${shipperName},
+
+        Đơn hàng (Mã: ${orderId}) mà bạn phụ trách đã được hoàn tất.
+        - Tổng tiền: ${order.totalAmount.toLocaleString("vi-VN")} VND
+        - Khách hàng: ${customerName}
+        - Phương thức thanh toán: ${paymentMessage}
+
+        Cảm ơn bạn đã làm việc hiệu quả. Chúc bạn có thêm nhiều đơn hàng thành công.
+
+        Trân trọng,
+        Đội ngũ hỗ trợ.
+        `;
+        await sendNotificationEmail(shipperEmail, completedShipperSubject, completedShipperMessage);
+        console.log(`Email thông báo hoàn tất giao hàng đã được gửi tới shipper: ${shipperEmail}`);
+      }
+    }
+  } catch (error) {
+    console.error("Lỗi khi gửi email thông báo:", error.message);
   }
 };
 
