@@ -399,6 +399,10 @@ const loginUser = async (req, res, next) => {
       return next(errorHandler(403, "Tài khoản của bạn đang trong trạng thái chờ duyệt, bạn không được phép đăng nhập. Xin cảm ơn!"));
     }
 
+    if (user.roleId === "shipper" && !user.isApproved) {
+      return next(errorHandler(403, "Tài khoản của bạn đang trong trạng thái chờ duyệt, bạn không được phép đăng nhập. Xin cảm ơn!"));
+    }
+
     // Nếu người dùng là seller, lấy storeIds
     if (user.roleId === "seller") {
       // Lấy danh sách storeIds từ user

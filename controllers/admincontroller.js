@@ -499,7 +499,7 @@ const approveShipper = async (req, res) => {
     await user.save();
 
     // Gửi email thông báo phê duyệt
-    await sendApprovalEmail(user.email, "Yêu Cầu Đăng Ký Shipper Được Phê Duyệt", `Xin chào ${user.fullName}, yêu cầu đăng ký làm shipper của bạn đã bị từ chối.`);
+    await sendApprovalEmail(user.email, "Yêu Cầu Đăng Ký Shipper Được Phê Duyệt", `Chúc mừng ${user.fullName}, tài khoản của bạn đã được phê duyệt làm shipper.`);
 
     res.status(200).json({
       message: "Shipper đã được duyệt thành công",
@@ -557,7 +557,7 @@ const rejectShipper = async (req, res) => {
     await user.save();
 
     // Gửi email thông báo phê duyệt
-    await sendApprovalEmail(user.email, "Yêu Cầu Đăng Ký Shipper Bị Từ Chối", `Chúc mừng ${user.fullName}, tài khoản của bạn đã được phê duyệt làm shipper.`);
+    await sendApprovalEmail(user.email, "Yêu Cầu Đăng Ký Shipper Bị Từ Chối", `Xin chào ${user.fullName}, yêu cầu đăng ký làm shipper của bạn đã bị từ chối.`);
 
     res.status(200).json({
       message: "Người dùng đã bị từ chối và quay lại vai trò customer. Thông tin shipper đã được xóa.",
