@@ -23,7 +23,7 @@ router.get("/payment-success", async (req, res) => {
     // }
 
     if (!["PAID", "SUCCESS"].includes(status)) {
-      return res.redirect("exp://192.168.1.66:8081/--/payment-failed");
+      return res.redirect("exp://192.168.1.2:8081/--/payment-failed");
     }
 
     // Tìm giao dịch dựa trên orderCode
@@ -105,7 +105,7 @@ router.get("/payment-success", async (req, res) => {
       <p style="font-weight: bold; margin-top: 20px; text-align: right;">Tổng thanh toán: <span style="font-size: 1.2em;">${cartSnapshot.totalPrice.toLocaleString("vi-VN")} VND</span></p>
 
       <div style="text-align: center; margin-top: 40px;">
-        <button onclick="window.location.href='exp://192.168.0.74:8081/--/payment-success'" 
+        <button onclick="window.location.href='exp://192.168.1.2:8081/--/payment-success'" 
           style="padding: 10px 20px; font-size: 16px; cursor: pointer; background-color: #E53935; color: #fff; border: none; border-radius: 5px;">
           Quay về ứng dụng
         </button>
