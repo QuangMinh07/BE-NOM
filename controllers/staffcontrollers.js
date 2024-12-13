@@ -17,6 +17,7 @@ const addStaff = async (req, res) => {
 
     // Kiểm tra số điện thoại trong bảng User
     const existingUser = await User.findOne({ phoneNumber: phone });
+    let userId = null;
     if (existingUser) {
       console.log("Tìm thấy số điện thoại trong bảng User:", existingUser);
 
@@ -38,8 +39,17 @@ const addStaff = async (req, res) => {
           existingUser.userName = name.toLowerCase(); // Chỉ chuyển thành chữ thường, giữ nguyên khoảng trắng
         }
 
+        // Gắn thêm storeId vào mảng storeIds
+        if (!existingUser.storeIds.includes(storeId)) {
+          existingUser.storeIds.push(storeId);
+          console.log("Gắn storeId vào storeIds:", storeId);
+        }
+
         await existingUser.save();
         console.log("Cập nhật vai trò thành công:", existingUser);
+
+        // Gán userId từ existingUser._id
+        userId = existingUser._id;
       }
     } else {
       console.log("Không tìm thấy số điện thoại trong bảng User.");
@@ -58,6 +68,7 @@ const addStaff = async (req, res) => {
       phone,
       name,
       store: storeId,
+      user: userId, // Lưu userId vào bảng Staff
     });
 
     // Lưu nhân viên vào database
@@ -157,6 +168,9 @@ const deleteStaff = async (req, res) => {
         user.userName = user.previousUserName;
         user.previousUserName = null; // Xóa giá trị lưu tạm sau khi khôi phục
       }
+
+      // Xóa toàn bộ storeIds
+      user.storeIds = [];
 
       await user.save();
       console.log("Cập nhật lại user thành công:", user);
